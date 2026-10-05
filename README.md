@@ -92,6 +92,10 @@ We are slowly replacing the original assembly code with equivalent C code, funct
 
 No, well, I don't think so at least. The original files according to the symbol dump were stored in `c:\DETHRACE`, and the symbol file is called `DETHSRC.SYM`. Maybe they removed the "a" to be compatible with [8.3 filenames](https://en.wikipedia.org/wiki/8.3_filename)?
 
+## Architecture
+
+How the engine works and how the reconstructed game code fits together with the modern harness: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+
 ## Contributing
 See [docs](./CONTRIBUTING.md)
 
