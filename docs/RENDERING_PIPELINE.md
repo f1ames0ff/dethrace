@@ -57,3 +57,24 @@ Render the framebuffer from above as a full-screen quad.
 ### Swap buffers hook
 - Again capture `gBack_screen` to pick up HUD elements rendered after the 3d scene, convert it to 32 bit, and render it as a full-screen quad.
 - Generate a palette-manipulation image which is blended over the top of everything as a full-screen quad to handle palette animations.
+
+## Vulkan presentation (experimental)
+
+Builds with `-DDETHRACE_VULKAN=ON` can present the software-rendered frame through a Vulkan
+swapchain instead of SDL's renderer (`--vulkan`). The path is:
+
+1. The `Swap` and `PaletteChanged` callbacks of the `virtualframebuffer` device reach the SDL
+   platform, which forwards them to the Vulkan presenter.
+2. The 8-bit frame is uploaded into an `R8_UNORM` image; the 256-entry palette lives in a
+   `256x1` `B8G8R8A8_UNORM` texture.
+3. A fullscreen triangle samples the index image and looks up the palette in a fragment shader,
+   preserving the exact palette semantics of the SDL path.
+4. Frames are presented with `VK_PRESENT_MODE_FIFO_KHR`; the existing FPS limiter still runs
+   after present.
+5. Palette-only changes update the palette texture and re-present the last frame without
+   re-rendering the scene, matching the SDL path.
+
+The swapchain is recreated on resize and out-of-date surfaces; a lost device triggers a single
+re-initialisation attempt. The shaders are compiled offline with `glslc` and checked in as C
+arrays (`src/harness/platforms/vulkan/vk_shaders.h`);
+`src/harness/platforms/vulkan/shaders/regen_spirv.ps1` regenerates them.

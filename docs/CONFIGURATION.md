@@ -77,10 +77,11 @@ AdapterName = ""
 
 Builds configured with `-DDETHRACE_VULKAN=ON` (requires the SDL2 or SDL3 platform driver) accept:
 
-- `--vulkan` - probe for a Vulkan device; falls back to the default renderer with a warning
-  when Vulkan is unavailable.
+- `--vulkan` - present the software-rendered frame through a Vulkan swapchain; falls back to the
+  SDL renderer with a warning when Vulkan is unavailable.
 - `--require-vulkan` - like `--vulkan`, but exits with an error when Vulkan is unavailable.
 
-`--vulkan` cannot be combined with `--opengl`/`Emulate3DFX`. This feature is under active
-development: currently only the device probe is implemented and logged, no rendering path uses
-Vulkan yet.
+`--vulkan` cannot be combined with `--opengl`/`Emulate3DFX`. Vulkan currently only replaces
+presentation of the software-rendered frame; 3D is still rendered by BRender on the CPU. The
+path uses SDL's Vulkan integration, so the Vulkan loader (or MoltenVK on macOS) must be available
+at runtime.

@@ -1,6 +1,7 @@
 #ifndef HARNESS_VULKAN_PROBE_H
 #define HARNESS_VULKAN_PROBE_H
 
+#include "platforms/vulkan/vulkan_host.h"
 #include <stdint.h>
 #include <vulkan/vulkan.h>
 
@@ -12,11 +13,6 @@ typedef struct tVulkan_probe_result {
 } tVulkan_probe_result;
 
 extern tVulkan_probe_result gVulkan_probe;
-
-typedef int (*Vulkan_HostLoadLibraryFn)(const char* path);
-typedef void (*Vulkan_HostUnloadLibraryFn)(void);
-typedef void* (*Vulkan_HostGetVkGetInstanceProcAddrFn)(void);
-typedef const char* (*Vulkan_HostGetErrorFn)(void);
 
 void Vulkan_Probe_SetSkipped(const char* reason);
 

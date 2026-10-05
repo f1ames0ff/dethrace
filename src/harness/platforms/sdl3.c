@@ -8,11 +8,14 @@
 #include "sdl3_syms.h"
 
 #ifdef DETHRACE_VULKAN
+#include "platforms/vulkan/vk_present.h"
 #include "platforms/vulkan/vulkan_probe.h"
 #if SDL_VERSION_ATLEAST(3, 2, 0)
 #include <SDL3/SDL_vulkan.h>
 #endif
 #endif
+
+#include "platforms/platform_viewport.h"
 
 SDL_COMPILE_TIME_ASSERT(sdl3_platform_requires_SDL3, SDL_MAJOR_VERSION == 3);
 
@@ -33,10 +36,15 @@ static void (*gKeyHandler_func)(void);
 // 32 bytes, 1 bit per key. Matches dos executable behavior
 static br_uint_32 key_state[8];
 
-static struct {
-    int x, y;
-    float scale_x, scale_y;
-} viewport;
+static tHarness_viewport viewport;
+
+#ifdef DETHRACE_VULKAN
+static int gVulkan_active;
+#if SDL_VERSION_ATLEAST(3, 2, 0)
+static int SDL3_LoadVulkanSymbols(void);
+static void SDL3_Vulkan_FillHost(tVulkan_host* host, SDL_Window* w);
+#endif
+#endif
 
 // Callbacks back into original game code
 extern void QuitGame(void);
@@ -86,26 +94,7 @@ static void* sdl3_so;
 #include "sdl_dyn_common.h"
 
 static void calculate_viewport(int window_width, int window_height) {
-    int vp_width, vp_height;
-    float target_aspect_ratio;
-    float aspect_ratio;
-
-    aspect_ratio = (float)window_width / window_height;
-    target_aspect_ratio = (float)gBack_screen->width / gBack_screen->height;
-
-    vp_width = window_width;
-    vp_height = window_height;
-    if (aspect_ratio != target_aspect_ratio) {
-        if (aspect_ratio > target_aspect_ratio) {
-            vp_width = window_height * target_aspect_ratio + .5f;
-        } else {
-            vp_height = window_width / target_aspect_ratio + .5f;
-        }
-    }
-    viewport.x = (window_width - vp_width) / 2;
-    viewport.y = (window_height - vp_height) / 2;
-    viewport.scale_x = (float)vp_width / gBack_screen->width;
-    viewport.scale_y = (float)vp_height / gBack_screen->height;
+    Harness_CalculateViewport(window_width, window_height, gBack_screen->width, gBack_screen->height, &viewport);
 }
 
 static int SDL3_Harness_SetWindowPos(void* hWnd, int x, int y, int nWidth, int nHeight) {
@@ -120,6 +109,12 @@ static int SDL3_Harness_SetWindowPos(void* hWnd, int x, int y, int nWidth, int n
 
 static void SDL3_Harness_DestroyWindow(void) {
     // SDL3_GL_DeleteContext(context);
+#ifdef DETHRACE_VULKAN
+    if (gVulkan_active) {
+        VkPresent_Shutdown();
+        gVulkan_active = 0;
+    }
+#endif
     if (window != NULL) {
         SDL3_DestroyWindow(window);
     }
@@ -173,6 +168,12 @@ static void SDL3_Harness_ProcessWindowMessages(void) {
 
         case SDL_EVENT_WINDOW_RESIZED:
             calculate_viewport(event.window.data1, event.window.data2);
+#ifdef DETHRACE_VULKAN
+            if (gVulkan_active) {
+                VkPresent_OnResize(event.window.data1, event.window.data2);
+                VkPresent_SetViewport(&viewport);
+            }
+#endif
             break;
 
         case SDL_EVENT_QUIT:
@@ -216,10 +217,18 @@ static int SDL3_Harness_GetMousePosition(int* pX, int* pY) {
         // software renderer
         SDL3_RenderCoordinatesFromWindow(renderer, fWX, fWY, &fX, &fY);
     } else {
-        // hardware renderer
-        // handle case where window is stretched larger than the pixel size
-        fX = fWX * (640.0f / window_width);
-        fY = fWY * (480.0f / window_height);
+#ifdef DETHRACE_VULKAN
+        if (gVulkan_active && viewport.scale_x > 0.0f && viewport.scale_y > 0.0f) {
+            fX = (fWX - viewport.x) / viewport.scale_x;
+            fY = (fWY - viewport.y) / viewport.scale_y;
+        } else
+#endif
+        {
+            // hardware renderer
+            // handle case where window is stretched larger than the pixel size
+            fX = fWX * (640.0f / window_width);
+            fY = fWY * (480.0f / window_height);
+        }
     }
     *pX = (int)fX;
     *pY = (int)fY;
@@ -301,52 +310,123 @@ static void SDL3_Harness_CreateWindow(const char* title, int width, int height, 
         SDL3_GL_SetSwapInterval(1);
 
     } else {
-        window = SDL3_CreateWindow(title,
-            window_width, window_height,
-            extra_window_flags);
-        if (window == NULL) {
-            LOG_PANIC2("Failed to create window: %s", SDL3_GetError());
-        }
+        int vulkan_started = 0;
 
-        renderer = SDL3_CreateRenderer(window, NULL);
-        if (renderer == NULL) {
-            LOG_PANIC2("Failed to create renderer: %s", SDL3_GetError());
-        }
-        SDL3_SetRenderVSync(renderer, 1);
-        SDL3_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
-        SDL3_SetRenderLogicalPresentation(renderer, render_width, render_height, SDL_LOGICAL_PRESENTATION_LETTERBOX);
-
-        screen_texture = SDL3_CreateTexture(renderer, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING, width, height);
-        if (screen_texture == NULL) {
-            const SDL_PixelFormat* renderer_formats = NULL;
-            SDL_PropertiesID renderer_props = SDL3_GetRendererProperties(renderer);
-            if (renderer_props) {
-                renderer_formats = SDL3_GetPointerProperty(renderer_props, SDL_PROP_RENDERER_TEXTURE_FORMATS_POINTER, NULL);
-                if (renderer_formats) {
-                    for (Uint32 i = 0; renderer_formats[i] != SDL_PIXELFORMAT_UNKNOWN; i++) {
-                        LOG_INFO2("%s\n", SDL3_GetPixelFormatName(renderer_formats[i]));
+#ifdef DETHRACE_VULKAN
+#if SDL_VERSION_ATLEAST(3, 2, 0)
+        if (harness_game_config.vulkan_mode && gVulkan_probe.available) {
+            if (SDL3_LoadVulkanSymbols() != 0) {
+                if (harness_game_config.require_vulkan) {
+                    LOG_PANIC("SDL3 does not provide the Vulkan API");
+                }
+                LOG_WARN("SDL3 does not provide the Vulkan API, falling back to the SDL renderer");
+            } else {
+                tVulkan_host host;
+                window = SDL3_CreateWindow(title,
+                    window_width, window_height,
+                    extra_window_flags | SDL_WINDOW_VULKAN);
+                if (window != NULL) {
+                    SDL3_Vulkan_FillHost(&host, window);
+                    if (VkPresent_Init(&host, window_width, window_height) == 0) {
+                        gVulkan_active = 1;
+                        vulkan_started = 1;
+                    } else {
+                        if (harness_game_config.require_vulkan) {
+                            LOG_PANIC("Vulkan presenter initialisation failed");
+                        }
+                        LOG_WARN("Vulkan presenter initialisation failed, falling back to the SDL renderer");
+                        SDL3_DestroyWindow(window);
+                        window = NULL;
                     }
+                } else {
+                    if (harness_game_config.require_vulkan) {
+                        LOG_PANIC2("Failed to create a Vulkan window: %s", SDL3_GetError());
+                    }
+                    LOG_WARN("Failed to create a Vulkan window: %s", SDL3_GetError());
                 }
             }
-            LOG_PANIC2("Failed to create renderer texture (%s)", SDL3_GetError());
         }
-        if (!SDL3_SetTextureScaleMode(screen_texture, SDL_SCALEMODE_NEAREST)) {
-            LOG_PANIC2("Failed to set texture scale mode: %s", SDL3_GetError());
+#endif
+#endif
+
+        if (!vulkan_started) {
+            window = SDL3_CreateWindow(title,
+                window_width, window_height,
+                extra_window_flags);
+            if (window == NULL) {
+                LOG_PANIC2("Failed to create window: %s", SDL3_GetError());
+            }
+
+            renderer = SDL3_CreateRenderer(window, NULL);
+            if (renderer == NULL) {
+                LOG_PANIC2("Failed to create renderer: %s", SDL3_GetError());
+            }
+            SDL3_SetRenderVSync(renderer, 1);
+            SDL3_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
+            SDL3_SetRenderLogicalPresentation(renderer, render_width, render_height, SDL_LOGICAL_PRESENTATION_LETTERBOX);
+
+            screen_texture = SDL3_CreateTexture(renderer, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING, width, height);
+            if (screen_texture == NULL) {
+                const SDL_PixelFormat* renderer_formats = NULL;
+                SDL_PropertiesID renderer_props = SDL3_GetRendererProperties(renderer);
+                if (renderer_props) {
+                    renderer_formats = SDL3_GetPointerProperty(renderer_props, SDL_PROP_RENDERER_TEXTURE_FORMATS_POINTER, NULL);
+                    if (renderer_formats) {
+                        for (Uint32 i = 0; renderer_formats[i] != SDL_PIXELFORMAT_UNKNOWN; i++) {
+                            LOG_INFO2("%s\n", SDL3_GetPixelFormatName(renderer_formats[i]));
+                        }
+                    }
+                }
+                LOG_PANIC2("Failed to create renderer texture (%s)", SDL3_GetError());
+            }
+            if (!SDL3_SetTextureScaleMode(screen_texture, SDL_SCALEMODE_NEAREST)) {
+                LOG_PANIC2("Failed to set texture scale mode: %s", SDL3_GetError());
+            }
         }
     }
 
     SDL3_HideCursor();
 
-    viewport.x = 0;
-    viewport.y = 0;
-    viewport.scale_x = 1;
-    viewport.scale_y = 1;
+#ifdef DETHRACE_VULKAN
+    if (gVulkan_active) {
+        Harness_CalculateViewport(window_width, window_height, width, height, &viewport);
+        VkPresent_OnResize(window_width, window_height);
+        VkPresent_SetViewport(&viewport);
+    } else
+#endif
+    {
+        viewport.x = 0;
+        viewport.y = 0;
+        viewport.width = 0;
+        viewport.height = 0;
+        viewport.scale_x = 1;
+        viewport.scale_y = 1;
+    }
 }
+
+#ifdef DETHRACE_VULKAN
+static int SDL3_Vulkan_CheckAlive(void) {
+    if (VkPresent_IsActive()) {
+        return 1;
+    }
+    gVulkan_active = 0;
+    gHarness_platform.ShowErrorMessage("Vulkan error", "Vulkan presentation failed; see the log for details.");
+    QuitGame();
+    return 0;
+}
+#endif
 
 static void SDL3_Harness_Swap(br_pixelmap* back_buffer) {
 
     SDL3_Harness_ProcessWindowMessages();
 
+#ifdef DETHRACE_VULKAN
+    if (gVulkan_active) {
+        if (SDL3_Vulkan_CheckAlive()) {
+            VkPresent_Frame(back_buffer);
+        }
+    } else
+#endif
     if (gl_context != NULL) {
         SDL3_GL_SwapWindow(window);
     } else {
@@ -376,6 +456,15 @@ static void SDL3_Harness_PaletteChanged(br_colour entries[256]) {
     for (int i = 0; i < 256; i++) {
         converted_palette[i] = (0xffu << 24 | BR_RED(entries[i]) << 16 | BR_GRN(entries[i]) << 8 | BR_BLU(entries[i]));
     }
+#ifdef DETHRACE_VULKAN
+    if (gVulkan_active) {
+        if (SDL3_Vulkan_CheckAlive()) {
+            VkPresent_SetPalette(entries);
+            VkPresent_Represent();
+        }
+        return;
+    }
+#endif
     if (last_screen_src != NULL) {
         SDL3_Harness_Swap(last_screen_src);
     }
@@ -411,6 +500,8 @@ typedef struct {
     bool (*LoadLibrary)(const char* path);
     void (*UnloadLibrary)(void);
     SDL_FunctionPointer (*GetVkGetInstanceProcAddr)(void);
+    const char* const* (*GetInstanceExtensions)(Uint32* count);
+    bool (*CreateSurface)(SDL_Window* window, VkInstance instance, const VkAllocationCallbacks* allocator, VkSurfaceKHR* surface);
 } tSDL3_Vulkan_Syms;
 
 static tSDL3_Vulkan_Syms sdl3_vulkan_syms;
@@ -431,16 +522,56 @@ static int SDL3_LoadVulkanSymbols(void) {
     sdl3_vulkan_syms.LoadLibrary = (bool (*)(const char*))Harness_LoadFunction(sdl3_so, "SDL_Vulkan_LoadLibrary");
     sdl3_vulkan_syms.UnloadLibrary = (void (*)(void))Harness_LoadFunction(sdl3_so, "SDL_Vulkan_UnloadLibrary");
     sdl3_vulkan_syms.GetVkGetInstanceProcAddr = (SDL_FunctionPointer (*)(void))Harness_LoadFunction(sdl3_so, "SDL_Vulkan_GetVkGetInstanceProcAddr");
+    sdl3_vulkan_syms.GetInstanceExtensions = (const char* const* (*)(Uint32*))Harness_LoadFunction(sdl3_so, "SDL_Vulkan_GetInstanceExtensions");
+    sdl3_vulkan_syms.CreateSurface = (bool (*)(SDL_Window*, VkInstance, const VkAllocationCallbacks*, VkSurfaceKHR*))Harness_LoadFunction(sdl3_so, "SDL_Vulkan_CreateSurface");
 #else
     sdl3_vulkan_syms.LoadLibrary = SDL_Vulkan_LoadLibrary;
     sdl3_vulkan_syms.UnloadLibrary = SDL_Vulkan_UnloadLibrary;
     sdl3_vulkan_syms.GetVkGetInstanceProcAddr = SDL_Vulkan_GetVkGetInstanceProcAddr;
+    sdl3_vulkan_syms.GetInstanceExtensions = SDL_Vulkan_GetInstanceExtensions;
+    sdl3_vulkan_syms.CreateSurface = SDL_Vulkan_CreateSurface;
 #endif
 
-    if (sdl3_vulkan_syms.LoadLibrary == NULL || sdl3_vulkan_syms.UnloadLibrary == NULL || sdl3_vulkan_syms.GetVkGetInstanceProcAddr == NULL) {
+    if (sdl3_vulkan_syms.LoadLibrary == NULL || sdl3_vulkan_syms.UnloadLibrary == NULL || sdl3_vulkan_syms.GetVkGetInstanceProcAddr == NULL
+        || sdl3_vulkan_syms.GetInstanceExtensions == NULL || sdl3_vulkan_syms.CreateSurface == NULL) {
         return 1;
     }
     return 0;
+}
+
+static int SDL3_Vulkan_GetInstanceExtensions_Normalized(void* window, uint32_t* count, const char** names, uint32_t max_names) {
+    const char* const* sdl_names;
+    Uint32 sdl_count = 0;
+    Uint32 i;
+
+    (void)window;
+    sdl_names = sdl3_vulkan_syms.GetInstanceExtensions(&sdl_count);
+    if (sdl_names == NULL || sdl_count > max_names) {
+        return 1;
+    }
+    for (i = 0; i < sdl_count; i++) {
+        names[i] = sdl_names[i];
+    }
+    *count = sdl_count;
+    return 0;
+}
+
+static int SDL3_Vulkan_CreateSurface_Normalized(void* window, VkInstance instance, VkSurfaceKHR* surface) {
+    return sdl3_vulkan_syms.CreateSurface((SDL_Window*)window, instance, NULL, surface) ? 0 : 1;
+}
+
+static const char* SDL3_Vulkan_GetError(void) {
+    return SDL3_GetError();
+}
+
+static void SDL3_Vulkan_FillHost(tVulkan_host* host, SDL_Window* w) {
+    host->load_library = SDL3_Vulkan_LoadLibrary_Normalized;
+    host->unload_library = sdl3_vulkan_syms.UnloadLibrary;
+    host->get_vk_get_instance_proc_addr = SDL3_Vulkan_GetVkGetInstanceProcAddr_Normalized;
+    host->get_error = SDL3_Vulkan_GetError;
+    host->get_instance_extensions = SDL3_Vulkan_GetInstanceExtensions_Normalized;
+    host->create_surface = SDL3_Vulkan_CreateSurface_Normalized;
+    host->window = w;
 }
 #endif
 #endif

@@ -53,6 +53,8 @@ target_sources(harness PRIVATE
 
     platforms/null.c
     platforms/null.h
+    platforms/platform_viewport.c
+    platforms/platform_viewport.h
 
     "${CMAKE_CURRENT_BINARY_DIR}/version.h"
 )
@@ -133,6 +135,10 @@ endif()
 
 if(DETHRACE_VULKAN)
     target_sources(harness PRIVATE
+        platforms/vulkan/vk_present.c
+        platforms/vulkan/vk_present.h
+        platforms/vulkan/vk_shaders.h
+        platforms/vulkan/vulkan_host.h
         platforms/vulkan/vulkan_probe.c
         platforms/vulkan/vulkan_probe.h
     )
