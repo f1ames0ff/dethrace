@@ -83,5 +83,5 @@ Builds configured with `-DDETHRACE_VULKAN=ON` (requires the SDL2 or SDL3 platfor
 
 `--vulkan` cannot be combined with `--opengl`/`Emulate3DFX`. Vulkan currently only replaces
 presentation of the software-rendered frame; 3D is still rendered by BRender on the CPU. The
-path uses SDL's Vulkan integration, so the Vulkan loader (or MoltenVK on macOS) must be available
-at runtime.
+path uses SDL's Vulkan integration, so the Vulkan loader must be available at runtime on
+Windows or Linux.
