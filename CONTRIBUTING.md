@@ -105,7 +105,7 @@ In this case, can just replace the "1" with `eSpec_dep_water`.
 ## Modern platform code
 If you need to add new code to interface with modern platforms or cross-platform (for example, audio, rendering, get system time), please add this code into `src/harness`. `harness` contains only new code written by the dethrace project, and its goal is to provide a simple cross-platform interface to `BRSRC13` and `DETHRACE`. We want to keep the code in `BRSRC13` and `DETHRACE` as faithful to the original as possible, and not be polluted with extra modern code or dependencies. Instead, that code goes into `harness`.
 
-Why is it called `harness`? Good question! It contains the _real_ `main` function, so harness starts up first, reads the command line, configures a few things, then calls into the _original_ main function in `src/DETHRACE`. The original game calls harness functions for platform services like audio and display. In this way, it acts like a harness for the original game engine.
+Why is it called `harness`? Good question! The process entry point `main` lives in `src/DETHRACE/main.c`; it calls `Harness_Init`, which starts up first, reads the command line, configures a few things, and then hands control to the _original_ entry point `original_main` in `src/DETHRACE/pc-all/allsys.c`. The original game calls harness functions for platform services like audio and display. In this way, it acts like a harness for the original game engine.
 
 ## Language
 This is a C project. No C++ please.

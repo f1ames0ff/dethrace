@@ -1,5 +1,7 @@
 # Code layout
 
+For the runtime overview of how these parts fit together, see [ARCHITECTURE.md](ARCHITECTURE.md).
+
 ### DETHRACE
 Game logic. According to the symbol dump, these files were originally stored in `C:\DETHRACE\src`.
 
