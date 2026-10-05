@@ -14,26 +14,29 @@ jobs:
     strategy:
       matrix:
         platform:
-          - { name: "Linux", arch: "x64", os: ubuntu-latest, werror: true }
-          - { name: "Linux", arch: "arm64", os: ubuntu-24.04-arm, werror: true }
+          - { name: "Linux", arch: "x64", os: ubuntu-latest, werror: true, vulkan: "ON" }
+          - { name: "Linux", arch: "arm64", os: ubuntu-24.04-arm, werror: true, vulkan: "OFF" }
           - {
               name: "MacOS",
               arch: "arm64-x64",
               os: macos-latest,
               werror: true,
               cmake-args: '-DCMAKE_OSX_ARCHITECTURES="x86_64;arm64"',
+              vulkan: "OFF",
             }
           - {
               name: "Windows",
               arch: "x86",
               os: windows-latest,
               msvc-arch: "Win32",
+              vulkan: "OFF",
             }
           - {
               name: "Windows",
               arch: "x64",
               os: windows-latest,
               msvc-arch: "x64",
+              vulkan: "OFF",
             }
     #          - { name: 'Windows',  arch: 'arm64',        os: windows-latest, msvc-arch: 'amd64_arm64', cross: true }
 
@@ -90,6 +93,7 @@ jobs:
             -DDETHRACE_PLATFORM_SDL2=ON \
             -DDETHRACE_PLATFORM_SDL3=ON \
             -DDETHRACE_PLATFORM_SDL_DYNAMIC=ON \
+            -DDETHRACE_VULKAN=${{ matrix.platform.vulkan }} \
             -DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded \
             ${{ matrix.platform.cmake-args }}
       - name: "Build (CMake)"

@@ -56,6 +56,8 @@ typedef struct tHarness_game_config {
 
     int verbose;
     int opengl_3dfx_mode;
+    int vulkan_mode;
+    int require_vulkan;
     int game_completed;
 
     int install_signalhandler;

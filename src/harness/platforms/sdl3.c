@@ -7,6 +7,13 @@
 #include "sdl3_scancode_map.h"
 #include "sdl3_syms.h"
 
+#ifdef DETHRACE_VULKAN
+#include "platforms/vulkan/vulkan_probe.h"
+#if SDL_VERSION_ATLEAST(3, 2, 0)
+#include <SDL3/SDL_vulkan.h>
+#endif
+#endif
+
 SDL_COMPILE_TIME_ASSERT(sdl3_platform_requires_SDL3, SDL_MAJOR_VERSION == 3);
 
 static SDL_Window* window;
@@ -398,6 +405,46 @@ static void* SDL3_Harness_GL_GetProcAddress(const char* name) {
     return SDL3_GL_GetProcAddress(name);
 }
 
+#ifdef DETHRACE_VULKAN
+#if SDL_VERSION_ATLEAST(3, 2, 0)
+typedef struct {
+    bool (*LoadLibrary)(const char* path);
+    void (*UnloadLibrary)(void);
+    SDL_FunctionPointer (*GetVkGetInstanceProcAddr)(void);
+} tSDL3_Vulkan_Syms;
+
+static tSDL3_Vulkan_Syms sdl3_vulkan_syms;
+
+static int SDL3_Vulkan_LoadLibrary_Normalized(const char* path) {
+    return sdl3_vulkan_syms.LoadLibrary(path) ? 0 : 1;
+}
+
+static void* SDL3_Vulkan_GetVkGetInstanceProcAddr_Normalized(void) {
+    return (void*)sdl3_vulkan_syms.GetVkGetInstanceProcAddr();
+}
+
+static int SDL3_LoadVulkanSymbols(void) {
+#ifdef DETHRACE_SDL_DYNAMIC
+    if (sdl3_so == NULL) {
+        return 1;
+    }
+    sdl3_vulkan_syms.LoadLibrary = (bool (*)(const char*))Harness_LoadFunction(sdl3_so, "SDL_Vulkan_LoadLibrary");
+    sdl3_vulkan_syms.UnloadLibrary = (void (*)(void))Harness_LoadFunction(sdl3_so, "SDL_Vulkan_UnloadLibrary");
+    sdl3_vulkan_syms.GetVkGetInstanceProcAddr = (SDL_FunctionPointer (*)(void))Harness_LoadFunction(sdl3_so, "SDL_Vulkan_GetVkGetInstanceProcAddr");
+#else
+    sdl3_vulkan_syms.LoadLibrary = SDL_Vulkan_LoadLibrary;
+    sdl3_vulkan_syms.UnloadLibrary = SDL_Vulkan_UnloadLibrary;
+    sdl3_vulkan_syms.GetVkGetInstanceProcAddr = SDL_Vulkan_GetVkGetInstanceProcAddr;
+#endif
+
+    if (sdl3_vulkan_syms.LoadLibrary == NULL || sdl3_vulkan_syms.UnloadLibrary == NULL || sdl3_vulkan_syms.GetVkGetInstanceProcAddr == NULL) {
+        return 1;
+    }
+    return 0;
+}
+#endif
+#endif
+
 static int SDL3_Harness_Platform_Init(tHarness_platform* platform) {
     if (SDL3_LoadSymbols() != 0) {
         return 1;
@@ -419,12 +466,33 @@ static int SDL3_Harness_Platform_Init(tHarness_platform* platform) {
     platform->PaletteChanged = SDL3_Harness_PaletteChanged;
     platform->GL_GetProcAddress = SDL3_Harness_GL_GetProcAddress;
     platform->GetViewport = SDL3_Harness_GetViewport;
+
+#ifdef DETHRACE_VULKAN
+    if (harness_game_config.vulkan_mode) {
+#if SDL_VERSION_ATLEAST(3, 2, 0)
+        SDL3_Init(SDL_INIT_VIDEO);
+        if (SDL3_LoadVulkanSymbols() != 0) {
+            Vulkan_Probe_SetSkipped("SDL3 build does not provide the Vulkan API");
+        } else {
+            Vulkan_Probe(SDL3_Vulkan_LoadLibrary_Normalized, sdl3_vulkan_syms.UnloadLibrary, SDL3_Vulkan_GetVkGetInstanceProcAddr_Normalized, SDL3_GetError);
+        }
+#else
+        Vulkan_Probe_SetSkipped("SDL3 3.2 or newer is required for Vulkan support");
+#endif
+    }
+#endif
     return 0;
 };
+
+#ifdef DETHRACE_VULKAN
+#define SDL3_PLATFORM_CAPS (ePlatform_cap_software | ePlatform_cap_opengl | ePlatform_cap_vulkan)
+#else
+#define SDL3_PLATFORM_CAPS (ePlatform_cap_software | ePlatform_cap_opengl)
+#endif
 
 const tPlatform_bootstrap SDL3_bootstrap = {
     "sdl3",
     "SDL3 video backend (libsdl.org)",
-    ePlatform_cap_software | ePlatform_cap_opengl,
+    SDL3_PLATFORM_CAPS,
     SDL3_Harness_Platform_Init,
 };

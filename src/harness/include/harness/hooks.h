@@ -52,6 +52,7 @@ typedef struct tHarness_platform {
 enum {
     ePlatform_cap_software = 0x1,
     ePlatform_cap_opengl = 0x2,
+    ePlatform_cap_vulkan = 0x4,
     ePlatform_cap_video_mask = ePlatform_cap_software | ePlatform_cap_opengl,
 };
 

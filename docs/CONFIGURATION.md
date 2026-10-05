@@ -72,3 +72,15 @@ AdapterName = ""
 3. `--dir` command line argument
 4. Current working directory (if `DATA/GENERAL.TXT` exists)
 5. `SDL_GetPrefPath` directory
+
+## Vulkan (experimental)
+
+Builds configured with `-DDETHRACE_VULKAN=ON` (requires the SDL2 or SDL3 platform driver) accept:
+
+- `--vulkan` - probe for a Vulkan device; falls back to the default renderer with a warning
+  when Vulkan is unavailable.
+- `--require-vulkan` - like `--vulkan`, but exits with an error when Vulkan is unavailable.
+
+`--vulkan` cannot be combined with `--opengl`/`Emulate3DFX`. This feature is under active
+development: currently only the device probe is implemented and logged, no rendering path uses
+Vulkan yet.

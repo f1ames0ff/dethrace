@@ -131,6 +131,15 @@ if(DETHRACE_PLATFORM_SDL3)
     endif()
 endif()
 
+if(DETHRACE_VULKAN)
+    target_sources(harness PRIVATE
+        platforms/vulkan/vulkan_probe.c
+        platforms/vulkan/vulkan_probe.h
+    )
+    target_compile_definitions(harness PRIVATE DETHRACE_VULKAN VK_NO_PROTOTYPES)
+    target_include_directories(harness SYSTEM PRIVATE "${DETHRACE_VULKAN_INCLUDE_DIR}")
+endif()
+
 if(DETHRACE_PLATFORM_SDL_DYNAMIC)
     target_compile_definitions(harness PRIVATE DETHRACE_SDL_DYNAMIC)
     target_link_libraries(harness PRIVATE ${CMAKE_DL_LIBS})

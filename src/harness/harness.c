@@ -6,6 +6,9 @@
 #include "include/harness/os.h"
 #include "ini.h"
 #include "platforms/null.h"
+#ifdef DETHRACE_VULKAN
+#include "platforms/vulkan/vulkan_probe.h"
+#endif
 #include "version.h"
 
 #include <ctype.h>
@@ -77,13 +80,18 @@ static int Harness_InitPlatform(void) {
             required_caps &= ~ePlatform_cap_video_mask;
             required_caps |= ePlatform_cap_opengl;
         }
+#ifdef DETHRACE_VULKAN
+        if (harness_game_config.vulkan_mode) {
+            required_caps |= ePlatform_cap_vulkan;
+        }
+#endif
 
         if (strlen(harness_game_config.platform_name) != 0) {
             size_t i;
             for (i = 0; i < BR_ASIZE(platform_bootstraps); i++) {
                 if (strcasecmp(platform_bootstraps[i]->name, harness_game_config.platform_name) == 0) {
                     if ((platform_bootstraps[i]->capabilities & required_caps) != required_caps) {
-                        fprintf(stderr, "Platform \"%s\" does not support required capabilities. Try another video driver and/or add/remove --opengl\n", platform_bootstraps[i]->name);
+                        fprintf(stderr, "Platform \"%s\" does not support required capabilities. Try another video driver and/or add/remove --opengl or --vulkan\n", platform_bootstraps[i]->name);
                         return 1;
                     }
                     selected_bootstrap = platform_bootstraps[i];
@@ -113,6 +121,21 @@ static int Harness_InitPlatform(void) {
                 }
             }
             if (selected_bootstrap == NULL) {
+#ifdef DETHRACE_VULKAN
+                if (harness_game_config.vulkan_mode) {
+                    size_t bootstrap_index;
+                    int has_vulkan_platform = 0;
+                    for (bootstrap_index = 0; bootstrap_index < BR_ASIZE(platform_bootstraps); bootstrap_index++) {
+                        if ((platform_bootstraps[bootstrap_index]->capabilities & ePlatform_cap_vulkan) != 0) {
+                            has_vulkan_platform = 1;
+                            break;
+                        }
+                    }
+                    fprintf(stderr, has_vulkan_platform
+                            ? "Could not initialise a Vulkan-capable platform driver\n"
+                            : "No compiled platform driver supports Vulkan (SDL2 or SDL3 is required)\n");
+                }
+#endif
                 fprintf(stderr, "Could not find a supported platform\n");
                 return 1;
             }
@@ -302,6 +325,10 @@ int Harness_Init(int* argc, char* argv[]) {
     // Disable verbose logging
     harness_game_config.verbose = 0;
 
+    // Vulkan is opt-in (M0: device probe only)
+    harness_game_config.vulkan_mode = 0;
+    harness_game_config.require_vulkan = 0;
+
     // install signal handler
     harness_game_config.install_signalhandler = 1;
 
@@ -314,10 +341,34 @@ int Harness_Init(int* argc, char* argv[]) {
         return 1;
     }
 
+#ifdef DETHRACE_VULKAN
+    if (harness_game_config.vulkan_mode && harness_game_config.opengl_3dfx_mode) {
+        fprintf(stderr, "--vulkan cannot be combined with --opengl/Emulate3DFX\n");
+        return 1;
+    }
+#endif
+
     // now resolve the platform
     if (Harness_InitPlatform() != 0) {
         return 1;
     }
+
+#ifdef DETHRACE_VULKAN
+    if (harness_game_config.vulkan_mode) {
+        if (!gVulkan_probe.available) {
+            if (harness_game_config.require_vulkan) {
+                fprintf(stderr, "Vulkan was requested but is unavailable: %s\n", gVulkan_probe.reason);
+                return 1;
+            }
+            LOG_WARN("Vulkan unavailable (%s), continuing without it", gVulkan_probe.reason);
+        } else {
+            LOG_INFO("Vulkan available: %s (API %u.%u.%u)", gVulkan_probe.device_name,
+                VK_API_VERSION_MAJOR(gVulkan_probe.api_version),
+                VK_API_VERSION_MINOR(gVulkan_probe.api_version),
+                VK_API_VERSION_PATCH(gVulkan_probe.api_version));
+        }
+    }
+#endif
 
     if (harness_game_config.install_signalhandler) {
         OS_InstallSignalHandler(argv[0]);
@@ -442,6 +493,23 @@ int Harness_ProcessCommandLine(int* argc, char* argv[]) {
             consumed = 1;
         } else if (strcasecmp(argv[i], "--opengl") == 0) {
             harness_game_config.opengl_3dfx_mode = 1;
+            consumed = 1;
+        } else if (strcasecmp(argv[i], "--vulkan") == 0) {
+#ifndef DETHRACE_VULKAN
+            fprintf(stderr, "--vulkan is not available in this build; rebuild with -DDETHRACE_VULKAN=ON\n");
+            return 1;
+#else
+            harness_game_config.vulkan_mode = 1;
+#endif
+            consumed = 1;
+        } else if (strcasecmp(argv[i], "--require-vulkan") == 0) {
+#ifndef DETHRACE_VULKAN
+            fprintf(stderr, "--require-vulkan is not available in this build; rebuild with -DDETHRACE_VULKAN=ON\n");
+            return 1;
+#else
+            harness_game_config.vulkan_mode = 1;
+            harness_game_config.require_vulkan = 1;
+#endif
             consumed = 1;
         } else if (strcasecmp(argv[i], "--game-completed") == 0) {
             harness_game_config.game_completed = 1;

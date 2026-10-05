@@ -45,6 +45,7 @@ option(DETHRACE_NET_ENABLED "Include net support" ON)
 option(DETHRACE_PLATFORM_SDL1 "Support SDL 1.2 platform driver" OFF)
 option(DETHRACE_PLATFORM_SDL2 "Support SDL 2 platform driver" ON)
 option(DETHRACE_PLATFORM_SDL3 "Support SDL 3 platform driver" OFF)
+option(DETHRACE_VULKAN "Enable experimental Vulkan support (SDL2/SDL3 required)" OFF)
 
 option(MSVC_42_FOR_RECCMP "Build with MSVC 4.2 to match assembly" OFF)
 
@@ -53,6 +54,7 @@ if(MSVC_42_FOR_RECCMP)
     set(DETHRACE_3DFX_PATCH OFF)
     set(DETHRACE_SOUND_ENABLED OFF)
     set(DETHRACE_NET_ENABLED OFF)
+    set(DETHRACE_VULKAN OFF)
     set(DETHRACE_PLATFORM_SDL1 OFF)
     set(DETHRACE_PLATFORM_SDL2 OFF)
     set(DETHRACE_PLATFORM_SDL3 OFF)
@@ -140,6 +142,21 @@ cmake_dependent_option(DETHRACE_PLATFORM_SDL_DYNAMIC "Load SDL dynamically" FALS
 
 if(NOT DETHRACE_PLATFORMS AND NOT MSVC_42_FOR_RECCMP)
     message(FATAL_ERROR "No platform drivers enabled")
+endif()
+
+if(DETHRACE_VULKAN AND NOT DETHRACE_PLATFORM_SDL2 AND NOT DETHRACE_PLATFORM_SDL3)
+    message(FATAL_ERROR "DETHRACE_VULKAN requires the SDL2 or SDL3 platform driver")
+endif()
+
+if(DETHRACE_VULKAN)
+    find_path(DETHRACE_VULKAN_INCLUDE_DIR NAMES vulkan/vulkan_core.h HINTS ENV VULKAN_SDK PATH_SUFFIXES Include include)
+    if(NOT DETHRACE_VULKAN_INCLUDE_DIR)
+        set(DETHRACE_VULKAN_INCLUDE_DIR "${CMAKE_SOURCE_DIR}/lib/Vulkan-Headers/include")
+    endif()
+    if(NOT EXISTS "${DETHRACE_VULKAN_INCLUDE_DIR}/vulkan/vulkan_core.h")
+        message(FATAL_ERROR "DETHRACE_VULKAN=ON but Vulkan headers were not found. Install the Vulkan SDK or use the vendored headers in lib/Vulkan-Headers")
+    endif()
+    message(STATUS "Vulkan headers: ${DETHRACE_VULKAN_INCLUDE_DIR}")
 endif()
 
 add_subdirectory(lib/BRender-v1.3.2)

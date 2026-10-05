@@ -7,6 +7,13 @@
 #include "sdl2_scancode_map.h"
 #include "sdl2_syms.h"
 
+#ifdef DETHRACE_VULKAN
+#include "platforms/vulkan/vulkan_probe.h"
+#if SDL_VERSION_ATLEAST(2, 0, 6)
+#include <SDL_vulkan.h>
+#endif
+#endif
+
 SDL_COMPILE_TIME_ASSERT(sdl2_platform_requires_SDL2, SDL_MAJOR_VERSION == 2);
 
 static SDL_Window* window;
@@ -379,6 +386,38 @@ static void SDL2_Harness_GetViewport(int* x, int* y, float* width_multipler, flo
     *height_multiplier = viewport.scale_y;
 }
 
+#ifdef DETHRACE_VULKAN
+typedef struct {
+    int (*LoadLibrary)(const char* path);
+    void (*UnloadLibrary)(void);
+    void* (*GetVkGetInstanceProcAddr)(void);
+} tSDL2_Vulkan_Syms;
+
+static tSDL2_Vulkan_Syms sdl2_vulkan_syms;
+
+static int SDL2_LoadVulkanSymbols(void) {
+#ifdef DETHRACE_SDL_DYNAMIC
+    if (sdl2_so == NULL) {
+        return 1;
+    }
+    sdl2_vulkan_syms.LoadLibrary = (int (*)(const char*))Harness_LoadFunction(sdl2_so, "SDL_Vulkan_LoadLibrary");
+    sdl2_vulkan_syms.UnloadLibrary = (void (*)(void))Harness_LoadFunction(sdl2_so, "SDL_Vulkan_UnloadLibrary");
+    sdl2_vulkan_syms.GetVkGetInstanceProcAddr = (void* (*)(void))Harness_LoadFunction(sdl2_so, "SDL_Vulkan_GetVkGetInstanceProcAddr");
+#else
+#if SDL_VERSION_ATLEAST(2, 0, 6)
+    sdl2_vulkan_syms.LoadLibrary = SDL_Vulkan_LoadLibrary;
+    sdl2_vulkan_syms.UnloadLibrary = SDL_Vulkan_UnloadLibrary;
+    sdl2_vulkan_syms.GetVkGetInstanceProcAddr = SDL_Vulkan_GetVkGetInstanceProcAddr;
+#endif
+#endif
+
+    if (sdl2_vulkan_syms.LoadLibrary == NULL || sdl2_vulkan_syms.UnloadLibrary == NULL || sdl2_vulkan_syms.GetVkGetInstanceProcAddr == NULL) {
+        return 1;
+    }
+    return 0;
+}
+#endif
+
 static int SDL2_Harness_Platform_Init(tHarness_platform* platform) {
     if (SDL2_LoadSymbols() != 0) {
         return 1;
@@ -400,12 +439,29 @@ static int SDL2_Harness_Platform_Init(tHarness_platform* platform) {
     platform->PaletteChanged = SDL2_Harness_PaletteChanged;
     platform->GL_GetProcAddress = SDL2_GL_GetProcAddress;
     platform->GetViewport = SDL2_Harness_GetViewport;
+
+#ifdef DETHRACE_VULKAN
+    if (harness_game_config.vulkan_mode) {
+        SDL2_Init(SDL_INIT_VIDEO);
+        if (SDL2_LoadVulkanSymbols() != 0) {
+            Vulkan_Probe_SetSkipped("SDL2 build does not provide the Vulkan API (SDL 2.0.6 or newer required)");
+        } else {
+            Vulkan_Probe(sdl2_vulkan_syms.LoadLibrary, sdl2_vulkan_syms.UnloadLibrary, sdl2_vulkan_syms.GetVkGetInstanceProcAddr, SDL2_GetError);
+        }
+    }
+#endif
     return 0;
 };
+
+#ifdef DETHRACE_VULKAN
+#define SDL2_PLATFORM_CAPS (ePlatform_cap_software | ePlatform_cap_opengl | ePlatform_cap_vulkan)
+#else
+#define SDL2_PLATFORM_CAPS (ePlatform_cap_software | ePlatform_cap_opengl)
+#endif
 
 const tPlatform_bootstrap SDL2_bootstrap = {
     "sdl2",
     "SDL2 video backend (libsdl.org)",
-    ePlatform_cap_software | ePlatform_cap_opengl,
+    SDL2_PLATFORM_CAPS,
     SDL2_Harness_Platform_Init,
 };
