@@ -17,6 +17,10 @@ endif()
 
 target_link_libraries(dethrace_obj PUBLIC smackw32 harness BRender::Full BRender::DDI s3)
 
+if(DETHRACE_VULKAN)
+    target_compile_definitions(dethrace_obj PUBLIC DETHRACE_VULKAN)
+endif()
+
 if(MSVC_42_FOR_RECCMP)
 # do nothing
 elseif(MSVC)
