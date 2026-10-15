@@ -159,6 +159,11 @@ if(DETHRACE_VULKAN)
     message(STATUS "Vulkan headers: ${DETHRACE_VULKAN_INCLUDE_DIR}")
 endif()
 
+set(BRENDER_BUILD_VKREND ${DETHRACE_VULKAN})
+if(DETHRACE_VULKAN)
+    set(VKREND_VULKAN_INCLUDE_DIR "${DETHRACE_VULKAN_INCLUDE_DIR}")
+endif()
+
 add_subdirectory(lib/BRender-v1.3.2)
 add_subdirectory(lib/libsmacker)
 add_subdirectory(lib/inih)

@@ -2,11 +2,13 @@
 #define HARNESS_HOOKS_H
 
 #include "brender.h"
+#include "device_p.h"
 #include <stdio.h>
 
 typedef enum tHarness_window_type {
     eWindow_type_software = 0,
     eWindow_type_opengl = 1,
+    eWindow_type_vkrend = 2,
 } tHarness_window_type;
 
 // Platform implementation functions
@@ -46,6 +48,8 @@ typedef struct tHarness_platform {
     // If this platform supports OpenGL
     void* (*GL_GetProcAddress)(const char* name);
     void (*GetViewport)(int* x, int* y, float* width_multiplier, float* height_multiplier);
+    // Fill the vkrend driver's host callbacks, if this platform supports Vulkan output
+    int (*Vulkan_FillVkrendCallbacks)(br_device_vkrend_callback_procs* callbacks);
 
 } tHarness_platform;
 

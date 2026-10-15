@@ -1,4 +1,7 @@
 #include "brender.h"
+#ifdef DETHRACE_VULKAN
+#include "brvkrend.h"
+#endif
 #include "car.h"
 #include "errors.h"
 #include "globvars.h"
@@ -75,6 +78,9 @@ int gForce_voodoo_mode;
 
 br_device_gl_callback_procs gl_callbacks;
 br_device_virtualfb_callback_procs virtualfb_callbacks;
+#ifdef DETHRACE_VULKAN
+br_device_vkrend_callback_procs vkrend_callbacks;
+#endif
 
 // from win95sys.c
 int gShow_fatal_error;
@@ -397,6 +403,30 @@ void PDUnlockRealBackScreen(int lock) {
 // FUNCTION: CARM95 0x004a728d
 void PDAllocateScreenAndBack(void) {
     gScreen = NULL;
+
+#ifdef DETHRACE_VULKAN
+    if (harness_game_config.vkrend_mode) {
+        if (gHarness_platform.Vulkan_FillVkrendCallbacks == NULL) {
+            dr_dprintf("vkrend: not supported by the current platform");
+        } else {
+            gHarness_platform.CreateWindow_("Carmageddon", gGraf_specs[gGraf_spec_index].phys_width, gGraf_specs[gGraf_spec_index].phys_height, eWindow_type_vkrend);
+
+            if (gHarness_platform.Vulkan_FillVkrendCallbacks(&vkrend_callbacks) == 0) {
+                BrDevBeginVar(&gScreen, "vkrend",
+                    BRT_WIDTH_I32, gGraf_specs[gGraf_spec_index].phys_width,
+                    BRT_HEIGHT_I32, gGraf_specs[gGraf_spec_index].phys_height,
+                    BrVkrendCallbacksToken(), &vkrend_callbacks,
+                    BRT_PIXEL_TYPE_U8, BR_PMT_RGB_565,
+                    BR_NULL_TOKEN);
+            }
+
+            if (gScreen == NULL) {
+                dr_dprintf("vkrend: device creation failed, falling back to software rendering");
+                gHarness_platform.DestroyWindow();
+            }
+        }
+    }
+#endif
 
     // added by dethrace. We default to software mode unless we explicitly ask for 3dfx opengl mode
     if (harness_game_config.opengl_3dfx_mode) {

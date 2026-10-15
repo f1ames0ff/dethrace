@@ -309,6 +309,23 @@ static void SDL2_Harness_CreateWindow(const char* title, int width, int height, 
         }
         SDL2_GL_SetSwapInterval(1);
 
+    } else if (window_type == eWindow_type_vkrend) {
+#ifdef DETHRACE_VULKAN
+        if (SDL2_LoadVulkanSymbols() != 0) {
+            LOG_PANIC("SDL2 does not provide the Vulkan API");
+        }
+        window = SDL2_CreateWindow(title,
+            SDL_WINDOWPOS_CENTERED,
+            SDL_WINDOWPOS_CENTERED,
+            window_width, window_height,
+            extra_window_flags | SDL_WINDOW_VULKAN);
+        if (window == NULL) {
+            LOG_PANIC2("Failed to create a Vulkan window: %s", SDL2_GetError());
+        }
+#else
+        LOG_PANIC("vkrend is not available in this build");
+#endif
+
     } else {
         int vulkan_started = 0;
 
@@ -544,6 +561,28 @@ static void SDL2_Vulkan_FillHost(tVulkan_host* host, SDL_Window* w) {
     host->create_surface = SDL2_Vulkan_CreateSurface_Normalized;
     host->window = w;
 }
+
+static int SDL2_Vulkan_CreateSurfaceVkrend(void* window, void* instance, void** surface) {
+    return SDL2_Vulkan_CreateSurface_Normalized(window, (VkInstance)instance, (VkSurfaceKHR*)surface);
+}
+
+static int SDL2_Harness_FillVkrendCallbacks(br_device_vkrend_callback_procs* callbacks) {
+    if (window == NULL) {
+        return 1;
+    }
+    if (SDL2_LoadVulkanSymbols() != 0) {
+        return 1;
+    }
+    callbacks->size = sizeof(*callbacks);
+    callbacks->window = window;
+    callbacks->load_library = sdl2_vulkan_syms.LoadLibrary;
+    callbacks->unload_library = sdl2_vulkan_syms.UnloadLibrary;
+    callbacks->get_vk_get_instance_proc_addr = sdl2_vulkan_syms.GetVkGetInstanceProcAddr;
+    callbacks->get_error = SDL2_Vulkan_GetError;
+    callbacks->get_instance_extensions = SDL2_Vulkan_GetInstanceExtensions_Normalized;
+    callbacks->create_surface = SDL2_Vulkan_CreateSurfaceVkrend;
+    return 0;
+}
 #endif
 
 static int SDL2_Harness_Platform_Init(tHarness_platform* platform) {
@@ -569,6 +608,8 @@ static int SDL2_Harness_Platform_Init(tHarness_platform* platform) {
     platform->GetViewport = SDL2_Harness_GetViewport;
 
 #ifdef DETHRACE_VULKAN
+    platform->Vulkan_FillVkrendCallbacks = SDL2_Harness_FillVkrendCallbacks;
+
     if (harness_game_config.vulkan_mode) {
         SDL2_Init(SDL_INIT_VIDEO);
         if (SDL2_LoadVulkanSymbols() != 0) {

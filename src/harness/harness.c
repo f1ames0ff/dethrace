@@ -84,6 +84,9 @@ static int Harness_InitPlatform(void) {
         if (harness_game_config.vulkan_mode) {
             required_caps |= ePlatform_cap_vulkan;
         }
+        if (harness_game_config.vkrend_mode) {
+            required_caps |= ePlatform_cap_vulkan;
+        }
 #endif
 
         if (strlen(harness_game_config.platform_name) != 0) {
@@ -328,6 +331,7 @@ int Harness_Init(int* argc, char* argv[]) {
     // Vulkan is opt-in (M0: device probe only)
     harness_game_config.vulkan_mode = 0;
     harness_game_config.require_vulkan = 0;
+    harness_game_config.vkrend_mode = 0;
 
     // install signal handler
     harness_game_config.install_signalhandler = 1;
@@ -344,6 +348,14 @@ int Harness_Init(int* argc, char* argv[]) {
 #ifdef DETHRACE_VULKAN
     if (harness_game_config.vulkan_mode && harness_game_config.opengl_3dfx_mode) {
         fprintf(stderr, "--vulkan cannot be combined with --opengl/Emulate3DFX\n");
+        return 1;
+    }
+    if (harness_game_config.vkrend_mode && harness_game_config.vulkan_mode) {
+        fprintf(stderr, "--vkrend cannot be combined with --vulkan\n");
+        return 1;
+    }
+    if (harness_game_config.vkrend_mode && harness_game_config.opengl_3dfx_mode) {
+        fprintf(stderr, "--vkrend cannot be combined with --opengl/Emulate3DFX\n");
         return 1;
     }
 #endif
@@ -380,8 +392,8 @@ int Harness_Init(int* argc, char* argv[]) {
         Harness_DetectGameMode();
     }
 
-    if (harness_game_config.opengl_3dfx_mode && !harness_game_info.data_dir_has_3dfx_assets) {
-        printf("Error: data directory does not contain 3dfx assets so opengl mode cannot be used\n");
+    if ((harness_game_config.opengl_3dfx_mode || harness_game_config.vkrend_mode) && !harness_game_info.data_dir_has_3dfx_assets) {
+        printf("Error: data directory does not contain 3dfx assets so the selected 3dfx mode cannot be used\n");
         exit(1);
     }
 
@@ -500,6 +512,14 @@ int Harness_ProcessCommandLine(int* argc, char* argv[]) {
             return 1;
 #else
             harness_game_config.vulkan_mode = 1;
+#endif
+            consumed = 1;
+        } else if (strcasecmp(argv[i], "--vkrend") == 0) {
+#ifndef DETHRACE_VULKAN
+            fprintf(stderr, "--vkrend is not available in this build; rebuild with -DDETHRACE_VULKAN=ON\n");
+            return 1;
+#else
+            harness_game_config.vkrend_mode = 1;
 #endif
             consumed = 1;
         } else if (strcasecmp(argv[i], "--require-vulkan") == 0) {
