@@ -406,8 +406,8 @@ void PDAllocateScreenAndBack(void) {
 
 #ifdef DETHRACE_VULKAN
     if (harness_game_config.vkrend_mode) {
-        if (gGraf_spec_index == 0) {
-            dr_dprintf("vkrend: requires the high-resolution mode, falling back to software rendering");
+        if (gGraf_spec_index == 0 || gNo_voodoo) {
+            dr_dprintf("vkrend: requires the 3dfx high-resolution mode, falling back to software rendering");
         } else if (gHarness_platform.Vulkan_FillVkrendCallbacks == NULL) {
             dr_dprintf("vkrend: not supported by the current platform");
         } else {
