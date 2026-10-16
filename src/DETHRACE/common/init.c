@@ -605,7 +605,7 @@ void InitialiseApplication(int pArgc, char** pArgv) {
 #ifdef DETHRACE_3DFX_PATCH
 
     // dethrace: if statement added to support all types of games
-    if (harness_game_config.opengl_3dfx_mode) {
+    if (harness_game_config.opengl_3dfx_mode || harness_game_config.vkrend_mode) {
         InitLineStuff();
         InitSmokeStuff();
         Init2DStuff();

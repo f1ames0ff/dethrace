@@ -406,7 +406,9 @@ void PDAllocateScreenAndBack(void) {
 
 #ifdef DETHRACE_VULKAN
     if (harness_game_config.vkrend_mode) {
-        if (gHarness_platform.Vulkan_FillVkrendCallbacks == NULL) {
+        if (gGraf_spec_index == 0) {
+            dr_dprintf("vkrend: requires the high-resolution mode, falling back to software rendering");
+        } else if (gHarness_platform.Vulkan_FillVkrendCallbacks == NULL) {
             dr_dprintf("vkrend: not supported by the current platform");
         } else {
             gHarness_platform.CreateWindow_("Carmageddon", gGraf_specs[gGraf_spec_index].phys_width, gGraf_specs[gGraf_spec_index].phys_height, eWindow_type_vkrend);
@@ -868,7 +870,7 @@ int original_main(int pArgc, char** pArgv) {
     float f;
 
     // dethrace: added to default the software rendering mode
-    if (!harness_game_config.opengl_3dfx_mode) {
+    if (!harness_game_config.opengl_3dfx_mode && !harness_game_config.vkrend_mode) {
         gNo_voodoo = 1;
     }
     //-

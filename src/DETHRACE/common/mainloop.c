@@ -679,7 +679,7 @@ tRace_result MainGameLoop(void) {
             // In 3dfx mode, 2d elements are rendered using `Copy8BitTo16BitRectangleWithTransparency` which uses
             // `gCurrent_palette` to convert 8 bit to 16 bit pixels. `gCurrent_palette` is still set to the interface palette here
             // I couldn't confirm why this does not happen in the original 3dfx executable (or does it?)
-            if (harness_game_config.opengl_3dfx_mode) {
+            if (harness_game_config.opengl_3dfx_mode || harness_game_config.vkrend_mode) {
                 EnsureRenderPalette();
                 EnsurePaletteUp();
             }
