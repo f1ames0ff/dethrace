@@ -133,6 +133,32 @@ work and gives no CPU/GPU pipeline overlap.
   (`src/DETHRACE/pc-all/allsys.c:470`) and every HUD `DimRectangle` becomes a
   `BrZbSceneRender` pass (`src/DETHRACE/common/displays.c:307`).
 
+### Frame pacing and simulation decoupling
+
+The game currently couples simulation and rendering: `MainGameLoop` (`src/DETHRACE/common/mainloop.c:562-739`)
+runs exactly one physics step per rendered frame, and `UpdateFramePeriod` (`mainloop.c:408-482`)
+derives `gFrame_period` from the real frame interval. Every simulation, animation and timer call
+consumes that period. A faster renderer therefore runs physics faster, and a slow frame advances
+physics further.
+
+Target design:
+
+- a fixed simulation step (for example 1/60 s) driven by an accumulator over real elapsed time;
+- zero or more simulation steps per rendered frame, capped to avoid a spiral of death;
+- rendering as fast as the platform allows, optionally interpolating render state between the last
+  two simulation states;
+- the simulation period is the source for `gFrame_period` consumers, not the render interval;
+- the interface cursor logic (`DoMouseCursor`, `graphics.c:3037-3050`) keeps its own update cadence
+  without sleeping the render loop;
+- `gKnobbled_frame_period` (`mainloop.c:720-724`) must not cap the uncapped measurement mode;
+- the swapchain defaults to FIFO for compatibility, with an explicit uncapped/IMMEDIATE mode for
+  the performance target. The attached monitor is 165 Hz, so a 200 FPS result is only meaningful
+  with that mode enabled.
+
+Acceptance for the performance target: at 640x480 on the RX 9070 XT, the race reaches at least
+200 FPS (p50 frame time <= 5.0 ms) in the uncapped mode, with the physics rate unchanged and the
+gameplay correct. FIFO remains the default.
+
 ## 5. Resource lifetime and device recovery
 
 - Geometry buffers retired per target are flushed at the next frame begin; deferred image/buffer
@@ -213,6 +239,11 @@ Frame N (slot = N % 2 or 3)
   end + submit (wait acquire_sem, signal render_sem[image], slot.fence)
   present (wait render_sem[image])
 ```
+
+The sim/render split sits above this graph: a fixed simulation step updates the world (physics,
+car animation, HUD timers) on its own accumulator, while the render graph runs at the display or
+uncapped rate and consumes the latest simulation state. The graph itself must not derive its
+pacing from `gFrame_period`.
 
 Required changes, in dependency order:
 
