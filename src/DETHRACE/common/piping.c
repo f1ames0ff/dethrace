@@ -487,6 +487,11 @@ void AddDataToSession(int pSubject_index, void* pData, tU32 pData_length) {
         temp_buffer_size = pData_length + (gLocal_buffer_size + offsetof(tPipe_chunk, chunk_data));
         if (temp_buffer_size < LOCAL_BUFFER_SIZE) {
             REPLAY_DEBUG_ASSERT(((tPipe_session*)gLocal_buffer)->pipe_magic1 == REPLAY_DEBUG_SESSION_MAGIC1);
+#ifdef DETHRACE_FIX_BUGS
+            if (((tPipe_session*)gLocal_buffer)->number_of_chunks == 0xFFu) {
+                return;
+            }
+#endif
             ((tPipe_session*)gLocal_buffer)->number_of_chunks++;
             PIPING_REQUIRE(((tPipe_session*)gLocal_buffer)->number_of_chunks != 0);
 #ifdef DETHRACE_FIX_BUGS
