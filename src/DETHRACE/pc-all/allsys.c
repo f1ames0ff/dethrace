@@ -2,6 +2,9 @@
 #ifdef DETHRACE_VULKAN
 #include "brvkrend.h"
 #endif
+#ifdef DETHRACE_RENDER_VK
+#include "render_vk_bridge.h"
+#endif
 #include "car.h"
 #include "errors.h"
 #include "globvars.h"
@@ -342,6 +345,11 @@ void PDShutdownSystem(void) {
             gHarness_platform.ShowErrorMessage("Carmageddon Fatal Error", gFatal_error_string);
         }
 
+#ifdef DETHRACE_RENDER_VK
+        if (GameRender_IsActive()) {
+            GameRender_Shutdown();
+        }
+#endif
         dr_dprintf("Destroying window...");
         gHarness_platform.DestroyWindow();
         dr_dprintf("End of PDShutdownSystem().");
@@ -404,6 +412,49 @@ void PDUnlockRealBackScreen(int lock) {
 void PDAllocateScreenAndBack(void) {
     gScreen = NULL;
 
+#ifdef DETHRACE_RENDER_VK
+    if (harness_game_config.render_vk_mode) {
+        if (gGraf_spec_index == 0 || gNo_voodoo) {
+            dr_dprintf("render_vk: requires the high-resolution mode, falling back to software rendering");
+            harness_game_config.render_vk_mode = 0;
+        } else if (gHarness_platform.RenderVk_FillPlatform == NULL) {
+            dr_dprintf("render_vk: not supported by the current platform");
+            harness_game_config.render_vk_mode = 0;
+        } else {
+            RvkPlatform platform;
+
+            gHarness_platform.CreateWindow_("Carmageddon",
+                gGraf_specs[gGraf_spec_index].phys_width,
+                gGraf_specs[gGraf_spec_index].phys_height,
+                eWindow_type_render_vk);
+            if (gHarness_platform.RenderVk_FillPlatform(&platform) != 0
+                || GameRender_Init(&platform,
+                       gGraf_specs[gGraf_spec_index].phys_width,
+                       gGraf_specs[gGraf_spec_index].phys_height) != 0) {
+                dr_dprintf("render_vk: device creation failed, falling back to software rendering");
+                harness_game_config.render_vk_mode = 0;
+                gHarness_platform.DestroyWindow();
+            } else {
+                virtualfb_callbacks.palette_changed = gHarness_platform.PaletteChanged;
+                virtualfb_callbacks.swap_buffers = GameRender_Swap;
+                BrDevBeginVar(&gScreen, "virtualframebuffer",
+                    BRT_WIDTH_I32, gGraf_specs[gGraf_spec_index].phys_width,
+                    BRT_HEIGHT_I32, gGraf_specs[gGraf_spec_index].phys_height,
+                    BRT_VIRTUALFB_CALLBACKS_P, &virtualfb_callbacks,
+                    BR_NULL_TOKEN);
+                if (gScreen == NULL) {
+                    dr_dprintf("render_vk: virtual framebuffer creation failed, falling back to software rendering");
+                    GameRender_Shutdown();
+                    harness_game_config.render_vk_mode = 0;
+                    gHarness_platform.DestroyWindow();
+                } else {
+                    gDOSGfx_initialized = 1;
+                }
+            }
+        }
+    }
+#endif
+
 #ifdef DETHRACE_VULKAN
     if (harness_game_config.vkrend_mode) {
         if (gGraf_spec_index == 0 || gNo_voodoo) {
@@ -447,6 +498,13 @@ void PDAllocateScreenAndBack(void) {
         }
     }
 
+#ifdef DETHRACE_RENDER_VK
+    if (gScreen != NULL && GameRender_IsActive()) {
+        gExceptions_file_suffix = ".TXT";
+        gInterpolate_textures = 1;
+        gExceptions_general_file = "SOFTWARE";
+    } else
+#endif
     if (gScreen != NULL) {
         if ((strcmp(gScreen->identifier, "Voodoo Graphics") == 0 && !gForce_voodoo_rush_mode) || gForce_voodoo_mode) {
             dr_dprintf("Voodoo Graphics mode");
@@ -870,7 +928,7 @@ int original_main(int pArgc, char** pArgv) {
     float f;
 
     // dethrace: added to default the software rendering mode
-    if (!harness_game_config.opengl_3dfx_mode && !harness_game_config.vkrend_mode) {
+    if (!harness_game_config.opengl_3dfx_mode && !harness_game_config.vkrend_mode && !harness_game_config.render_vk_mode) {
         gNo_voodoo = 1;
     }
     //-
@@ -928,6 +986,12 @@ int original_main(int pArgc, char** pArgv) {
 #ifdef DETHRACE_3DFX_PATCH
     if (!gNo_voodoo) {
         gGraf_spec_index = 1;
+    }
+#endif
+#ifdef DETHRACE_RENDER_VK
+    if (harness_game_config.render_vk_mode) {
+        gGraf_spec_index = 1;
+        gNo_voodoo = 0;
     }
 #endif
 

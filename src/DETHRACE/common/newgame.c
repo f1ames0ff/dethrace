@@ -405,6 +405,28 @@ int DoOnePlayerStart(void) {
     int merrily_looping;
     tProgram_state saved_state;
 
+#ifdef DETHRACE_RENDER_VK
+    if (harness_game_config.render_vk_mode && getenv("RVK_AUTOSTART") != NULL) {
+        gProgram_state.frank_or_anniness = 0;
+        gProgram_state.skill_level = 1;
+        StartLoadingScreen();
+        AboutToLoadFirstCar();
+        SwitchToRealResolution();
+        LoadCar(
+            gBasic_car_names[gProgram_state.frank_or_anniness],
+            eDriver_local_human,
+            &gProgram_state.current_car,
+            gProgram_state.frank_or_anniness,
+            gProgram_state.player_name[gProgram_state.frank_or_anniness],
+            &gOur_car_storage_space);
+        SwitchToLoresMode();
+        SetCarStorageTexturingLevel(&gOur_car_storage_space, GetCarTexturingLevel(), eCTL_full);
+        gNet_mode = eNet_mode_none;
+        InitGame(0);
+        return 1;
+    }
+#endif
+
     if (OriginalCarmaCDinDrive()) {
         memcpy(&saved_state, &gProgram_state, sizeof(tProgram_state));
         do {

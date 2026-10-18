@@ -243,7 +243,52 @@ void rvk_destroy_swapchain(RvkDevice *device) {
     device->image_count = 0;
 }
 
-RvkResult rvk_create_render_pass(RvkDevice *device) {
+RvkResult rvk_create_depth_resources(RvkDevice *device) {
+    VkImageViewCreateInfo view_info;
+    VkResult result;
+
+    device->depth_format = VK_FORMAT_D32_SFLOAT;
+    result = rvk_create_image(device, device->extent.width, device->extent.height, device->depth_format,
+        VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, &device->depth_image, &device->depth_memory);
+    if (result != VK_SUCCESS) {
+        return rvk_check(device, result, "create depth image");
+    }
+    memset(&view_info, 0, sizeof(view_info));
+    view_info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+    view_info.image = device->depth_image;
+    view_info.viewType = VK_IMAGE_VIEW_TYPE_2D;
+    view_info.format = device->depth_format;
+    view_info.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+    view_info.subresourceRange.baseMipLevel = 0;
+    view_info.subresourceRange.levelCount = 1;
+    view_info.subresourceRange.baseArrayLayer = 0;
+    view_info.subresourceRange.layerCount = 1;
+    result = device->vk.CreateImageView(device->device, &view_info, NULL, &device->depth_view);
+    if (result != VK_SUCCESS) {
+        return rvk_check(device, result, "create depth view");
+    }
+    return RVK_OK;
+}
+
+void rvk_destroy_depth_resources(RvkDevice *device) {
+    if (device == NULL) {
+        return;
+    }
+    if (device->depth_view != VK_NULL_HANDLE && device->vk.DestroyImageView != NULL) {
+        device->vk.DestroyImageView(device->device, device->depth_view, NULL);
+    }
+    device->depth_view = VK_NULL_HANDLE;
+    if (device->depth_image != VK_NULL_HANDLE && device->vk.DestroyImage != NULL) {
+        device->vk.DestroyImage(device->device, device->depth_image, NULL);
+    }
+    device->depth_image = VK_NULL_HANDLE;
+    if (device->depth_memory != VK_NULL_HANDLE && device->vk.FreeMemory != NULL) {
+        device->vk.FreeMemory(device->device, device->depth_memory, NULL);
+    }
+    device->depth_memory = VK_NULL_HANDLE;
+}
+
+static RvkResult rvk_create_clear_render_pass(RvkDevice *device) {
     VkAttachmentDescription color_attachment;
     VkAttachmentReference color_reference;
     VkSubpassDescription subpass;
@@ -289,19 +334,184 @@ RvkResult rvk_create_render_pass(RvkDevice *device) {
 
     result = device->vk.CreateRenderPass(device->device, &create_info, NULL, &device->render_pass);
     if (result != VK_SUCCESS) {
-        return rvk_check(device, result, "vkCreateRenderPass");
+        return rvk_check(device, result, "create clear render pass");
     }
     return RVK_OK;
 }
 
-void rvk_destroy_render_pass(RvkDevice *device) {
+static RvkResult rvk_create_world_render_pass(RvkDevice *device) {
+    VkAttachmentDescription attachments[2];
+    VkAttachmentReference color_reference;
+    VkAttachmentReference depth_reference;
+    VkSubpassDescription subpass;
+    VkSubpassDependency dependency;
+    VkRenderPassCreateInfo create_info;
+    VkResult result;
+
+    memset(attachments, 0, sizeof(attachments));
+    attachments[0].format = device->format;
+    attachments[0].samples = VK_SAMPLE_COUNT_1_BIT;
+    attachments[0].loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    attachments[0].storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+    attachments[0].stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    attachments[0].stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    attachments[0].initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    attachments[0].finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    attachments[1].format = device->depth_format;
+    attachments[1].samples = VK_SAMPLE_COUNT_1_BIT;
+    attachments[1].loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    attachments[1].storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    attachments[1].stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    attachments[1].stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    attachments[1].initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    attachments[1].finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+
+    memset(&color_reference, 0, sizeof(color_reference));
+    color_reference.attachment = 0;
+    color_reference.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    memset(&depth_reference, 0, sizeof(depth_reference));
+    depth_reference.attachment = 1;
+    depth_reference.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+
+    memset(&subpass, 0, sizeof(subpass));
+    subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+    subpass.colorAttachmentCount = 1;
+    subpass.pColorAttachments = &color_reference;
+    subpass.pDepthStencilAttachment = &depth_reference;
+
+    memset(&dependency, 0, sizeof(dependency));
+    dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
+    dependency.dstSubpass = 0;
+    dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
+    dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
+    dependency.srcAccessMask = 0;
+    dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+
+    memset(&create_info, 0, sizeof(create_info));
+    create_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+    create_info.attachmentCount = 2;
+    create_info.pAttachments = attachments;
+    create_info.subpassCount = 1;
+    create_info.pSubpasses = &subpass;
+    create_info.dependencyCount = 1;
+    create_info.pDependencies = &dependency;
+    result = device->vk.CreateRenderPass(device->device, &create_info, NULL, &device->world_render_pass);
+    if (result != VK_SUCCESS) {
+        return rvk_check(device, result, "create world render pass");
+    }
+    return RVK_OK;
+}
+
+static RvkResult rvk_create_overlay_render_pass(RvkDevice *device, VkAttachmentLoadOp load_op, VkImageLayout initial_layout, VkRenderPass *out_pass) {
+    VkAttachmentDescription color_attachment;
+    VkAttachmentReference color_reference;
+    VkSubpassDescription subpass;
+    VkSubpassDependency dependency;
+    VkRenderPassCreateInfo create_info;
+    VkResult result;
+
+    memset(&color_attachment, 0, sizeof(color_attachment));
+    color_attachment.format = device->format;
+    color_attachment.samples = VK_SAMPLE_COUNT_1_BIT;
+    color_attachment.loadOp = load_op;
+    color_attachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+    color_attachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    color_attachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    color_attachment.initialLayout = initial_layout;
+    color_attachment.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+
+    memset(&color_reference, 0, sizeof(color_reference));
+    color_reference.attachment = 0;
+    color_reference.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+    memset(&subpass, 0, sizeof(subpass));
+    subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+    subpass.colorAttachmentCount = 1;
+    subpass.pColorAttachments = &color_reference;
+
+    memset(&dependency, 0, sizeof(dependency));
+    dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
+    dependency.dstSubpass = 0;
+    dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    dependency.srcAccessMask = load_op == VK_ATTACHMENT_LOAD_OP_LOAD ? VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT : 0;
+    dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+
+    memset(&create_info, 0, sizeof(create_info));
+    create_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+    create_info.attachmentCount = 1;
+    create_info.pAttachments = &color_attachment;
+    create_info.subpassCount = 1;
+    create_info.pSubpasses = &subpass;
+    create_info.dependencyCount = 1;
+    create_info.pDependencies = &dependency;
+    result = device->vk.CreateRenderPass(device->device, &create_info, NULL, out_pass);
+    if (result != VK_SUCCESS) {
+        return rvk_check(device, result, "create overlay render pass");
+    }
+    return RVK_OK;
+}
+
+RvkResult rvk_create_render_passes(RvkDevice *device) {
+    RvkResult result;
+
+    result = rvk_create_clear_render_pass(device);
+    if (result != RVK_OK) {
+        return result;
+    }
+    result = rvk_create_world_render_pass(device);
+    if (result != RVK_OK) {
+        return result;
+    }
+    result = rvk_create_overlay_render_pass(device, VK_ATTACHMENT_LOAD_OP_LOAD,
+        VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, &device->overlay_load_render_pass);
+    if (result != RVK_OK) {
+        return result;
+    }
+    return rvk_create_overlay_render_pass(device, VK_ATTACHMENT_LOAD_OP_CLEAR,
+        VK_IMAGE_LAYOUT_UNDEFINED, &device->overlay_clear_render_pass);
+}
+
+void rvk_destroy_render_passes(RvkDevice *device) {
     if (device == NULL) {
         return;
+    }
+    if (device->overlay_clear_render_pass != VK_NULL_HANDLE && device->vk.DestroyRenderPass != NULL) {
+        device->vk.DestroyRenderPass(device->device, device->overlay_clear_render_pass, NULL);
+    }
+    if (device->overlay_load_render_pass != VK_NULL_HANDLE && device->vk.DestroyRenderPass != NULL) {
+        device->vk.DestroyRenderPass(device->device, device->overlay_load_render_pass, NULL);
+    }
+    if (device->world_render_pass != VK_NULL_HANDLE && device->vk.DestroyRenderPass != NULL) {
+        device->vk.DestroyRenderPass(device->device, device->world_render_pass, NULL);
     }
     if (device->render_pass != VK_NULL_HANDLE && device->vk.DestroyRenderPass != NULL) {
         device->vk.DestroyRenderPass(device->device, device->render_pass, NULL);
     }
+    device->overlay_clear_render_pass = VK_NULL_HANDLE;
+    device->overlay_load_render_pass = VK_NULL_HANDLE;
+    device->world_render_pass = VK_NULL_HANDLE;
     device->render_pass = VK_NULL_HANDLE;
+}
+
+static VkResult rvk_create_one_framebuffer(RvkDevice *device, VkRenderPass render_pass, uint32_t image_index,
+    VkImageView color_view, VkImageView depth_view, VkFramebuffer *out_framebuffer) {
+    VkImageView attachments[2];
+    VkFramebufferCreateInfo framebuffer_info;
+    uint32_t attachment_count = depth_view != VK_NULL_HANDLE ? 2 : 1;
+
+    (void)image_index;
+    attachments[0] = color_view;
+    attachments[1] = depth_view;
+    memset(&framebuffer_info, 0, sizeof(framebuffer_info));
+    framebuffer_info.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+    framebuffer_info.renderPass = render_pass;
+    framebuffer_info.attachmentCount = attachment_count;
+    framebuffer_info.pAttachments = attachments;
+    framebuffer_info.width = device->extent.width;
+    framebuffer_info.height = device->extent.height;
+    framebuffer_info.layers = 1;
+    return device->vk.CreateFramebuffer(device->device, &framebuffer_info, NULL, out_framebuffer);
 }
 
 RvkResult rvk_create_framebuffers(RvkDevice *device) {
@@ -310,13 +520,16 @@ RvkResult rvk_create_framebuffers(RvkDevice *device) {
 
     device->views = (VkImageView *)calloc(device->image_count, sizeof(VkImageView));
     device->framebuffers = (VkFramebuffer *)calloc(device->image_count, sizeof(VkFramebuffer));
-    if (device->views == NULL || device->framebuffers == NULL) {
+    device->world_framebuffers = (VkFramebuffer *)calloc(device->image_count, sizeof(VkFramebuffer));
+    device->overlay_framebuffers = (VkFramebuffer *)calloc(device->image_count, sizeof(VkFramebuffer));
+    device->overlay_clear_framebuffers = (VkFramebuffer *)calloc(device->image_count, sizeof(VkFramebuffer));
+    if (device->views == NULL || device->framebuffers == NULL || device->world_framebuffers == NULL
+        || device->overlay_framebuffers == NULL || device->overlay_clear_framebuffers == NULL) {
         return RVK_ERROR_ARGUMENT;
     }
 
     for (i = 0; i < device->image_count; i++) {
         VkImageViewCreateInfo view_info;
-        VkFramebufferCreateInfo framebuffer_info;
 
         memset(&view_info, 0, sizeof(view_info));
         view_info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
@@ -330,20 +543,23 @@ RvkResult rvk_create_framebuffers(RvkDevice *device) {
         view_info.subresourceRange.layerCount = 1;
         result = device->vk.CreateImageView(device->device, &view_info, NULL, &device->views[i]);
         if (result != VK_SUCCESS) {
-            return rvk_check(device, result, "vkCreateImageView");
+            return rvk_check(device, result, "create swapchain image view");
         }
-
-        memset(&framebuffer_info, 0, sizeof(framebuffer_info));
-        framebuffer_info.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-        framebuffer_info.renderPass = device->render_pass;
-        framebuffer_info.attachmentCount = 1;
-        framebuffer_info.pAttachments = &device->views[i];
-        framebuffer_info.width = device->extent.width;
-        framebuffer_info.height = device->extent.height;
-        framebuffer_info.layers = 1;
-        result = device->vk.CreateFramebuffer(device->device, &framebuffer_info, NULL, &device->framebuffers[i]);
+        result = rvk_create_one_framebuffer(device, device->render_pass, i, device->views[i], VK_NULL_HANDLE, &device->framebuffers[i]);
         if (result != VK_SUCCESS) {
-            return rvk_check(device, result, "vkCreateFramebuffer");
+            return rvk_check(device, result, "create clear framebuffer");
+        }
+        result = rvk_create_one_framebuffer(device, device->world_render_pass, i, device->views[i], device->depth_view, &device->world_framebuffers[i]);
+        if (result != VK_SUCCESS) {
+            return rvk_check(device, result, "create world framebuffer");
+        }
+        result = rvk_create_one_framebuffer(device, device->overlay_load_render_pass, i, device->views[i], VK_NULL_HANDLE, &device->overlay_framebuffers[i]);
+        if (result != VK_SUCCESS) {
+            return rvk_check(device, result, "create overlay framebuffer");
+        }
+        result = rvk_create_one_framebuffer(device, device->overlay_clear_render_pass, i, device->views[i], VK_NULL_HANDLE, &device->overlay_clear_framebuffers[i]);
+        if (result != VK_SUCCESS) {
+            return rvk_check(device, result, "create overlay clear framebuffer");
         }
     }
     return RVK_OK;
@@ -354,6 +570,27 @@ void rvk_destroy_framebuffers(RvkDevice *device) {
 
     if (device == NULL) {
         return;
+    }
+    if (device->overlay_clear_framebuffers != NULL) {
+        for (i = 0; i < device->image_count; i++) {
+            if (device->overlay_clear_framebuffers[i] != VK_NULL_HANDLE && device->vk.DestroyFramebuffer != NULL) {
+                device->vk.DestroyFramebuffer(device->device, device->overlay_clear_framebuffers[i], NULL);
+            }
+        }
+    }
+    if (device->overlay_framebuffers != NULL) {
+        for (i = 0; i < device->image_count; i++) {
+            if (device->overlay_framebuffers[i] != VK_NULL_HANDLE && device->vk.DestroyFramebuffer != NULL) {
+                device->vk.DestroyFramebuffer(device->device, device->overlay_framebuffers[i], NULL);
+            }
+        }
+    }
+    if (device->world_framebuffers != NULL) {
+        for (i = 0; i < device->image_count; i++) {
+            if (device->world_framebuffers[i] != VK_NULL_HANDLE && device->vk.DestroyFramebuffer != NULL) {
+                device->vk.DestroyFramebuffer(device->device, device->world_framebuffers[i], NULL);
+            }
+        }
     }
     if (device->framebuffers != NULL) {
         for (i = 0; i < device->image_count; i++) {
@@ -369,8 +606,14 @@ void rvk_destroy_framebuffers(RvkDevice *device) {
             }
         }
     }
+    free(device->overlay_clear_framebuffers);
+    free(device->overlay_framebuffers);
+    free(device->world_framebuffers);
     free(device->framebuffers);
     free(device->views);
+    device->overlay_clear_framebuffers = NULL;
+    device->overlay_framebuffers = NULL;
+    device->world_framebuffers = NULL;
     device->framebuffers = NULL;
     device->views = NULL;
 }
@@ -385,20 +628,16 @@ RvkResult rvk_recreate_swapchain(RvkDevice *device) {
         device->vk.DeviceWaitIdle(device->device);
     }
     rvk_destroy_framebuffers(device);
-    rvk_destroy_render_pass(device);
+    rvk_destroy_depth_resources(device);
     rvk_destroy_swapchain(device);
 
     result = rvk_create_swapchain(device);
     if (result != RVK_OK) {
         return result;
     }
-    result = rvk_create_render_pass(device);
+    result = rvk_create_depth_resources(device);
     if (result != RVK_OK) {
         return result;
     }
-    result = rvk_create_framebuffers(device);
-    if (result != RVK_OK) {
-        return result;
-    }
-    return RVK_OK;
+    return rvk_create_framebuffers(device);
 }

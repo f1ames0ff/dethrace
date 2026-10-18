@@ -91,6 +91,7 @@ static RvkResult rvk_load_instance_functions(RvkDevice *device) {
     RVK_LOAD(EnumerateDeviceExtensionProperties);
     RVK_LOAD(GetPhysicalDeviceProperties);
     RVK_LOAD(GetPhysicalDeviceFormatProperties);
+    RVK_LOAD(GetPhysicalDeviceMemoryProperties);
     RVK_LOAD(GetPhysicalDeviceQueueFamilyProperties);
     RVK_LOAD(GetPhysicalDeviceSurfaceSupportKHR);
     RVK_LOAD(GetPhysicalDeviceSurfaceCapabilitiesKHR);
@@ -127,6 +128,45 @@ static RvkResult rvk_load_instance_functions(RvkDevice *device) {
     RVK_LOAD(WaitForFences);
     RVK_LOAD(ResetFences);
     RVK_LOAD(QueueSubmit);
+    RVK_LOAD(QueueWaitIdle);
+    RVK_LOAD(CreateBuffer);
+    RVK_LOAD(DestroyBuffer);
+    RVK_LOAD(GetBufferMemoryRequirements);
+    RVK_LOAD(BindBufferMemory);
+    RVK_LOAD(CreateImage);
+    RVK_LOAD(DestroyImage);
+    RVK_LOAD(GetImageMemoryRequirements);
+    RVK_LOAD(BindImageMemory);
+    RVK_LOAD(AllocateMemory);
+    RVK_LOAD(FreeMemory);
+    RVK_LOAD(MapMemory);
+    RVK_LOAD(UnmapMemory);
+    RVK_LOAD(CreateSampler);
+    RVK_LOAD(DestroySampler);
+    RVK_LOAD(CreateDescriptorSetLayout);
+    RVK_LOAD(DestroyDescriptorSetLayout);
+    RVK_LOAD(CreateDescriptorPool);
+    RVK_LOAD(DestroyDescriptorPool);
+    RVK_LOAD(AllocateDescriptorSets);
+    RVK_LOAD(FreeDescriptorSets);
+    RVK_LOAD(UpdateDescriptorSets);
+    RVK_LOAD(CreatePipelineLayout);
+    RVK_LOAD(DestroyPipelineLayout);
+    RVK_LOAD(CreateShaderModule);
+    RVK_LOAD(DestroyShaderModule);
+    RVK_LOAD(CreateGraphicsPipelines);
+    RVK_LOAD(DestroyPipeline);
+    RVK_LOAD(CmdBindPipeline);
+    RVK_LOAD(CmdBindDescriptorSets);
+    RVK_LOAD(CmdBindVertexBuffers);
+    RVK_LOAD(CmdBindIndexBuffer);
+    RVK_LOAD(CmdPushConstants);
+    RVK_LOAD(CmdDraw);
+    RVK_LOAD(CmdDrawIndexed);
+    RVK_LOAD(CmdSetViewport);
+    RVK_LOAD(CmdSetScissor);
+    RVK_LOAD(CmdCopyBufferToImage);
+    RVK_LOAD(CmdPipelineBarrier);
 
     device->vk.CreateDebugUtilsMessengerEXT = (PFN_vkCreateDebugUtilsMessengerEXT)device->get_instance_proc_addr(device->instance, "vkCreateDebugUtilsMessengerEXT");
     device->vk.DestroyDebugUtilsMessengerEXT = (PFN_vkDestroyDebugUtilsMessengerEXT)device->get_instance_proc_addr(device->instance, "vkDestroyDebugUtilsMessengerEXT");
@@ -445,6 +485,7 @@ static RvkResult rvk_create_device(RvkDevice *device) {
     }
     device->vk.GetDeviceQueue(device->device, device->graphics_family, 0, &device->graphics_queue);
     device->vk.GetDeviceQueue(device->device, device->present_family, 0, &device->present_queue);
+    device->vk.GetPhysicalDeviceMemoryProperties(device->physical_device, &device->memory_properties);
     return RVK_OK;
 }
 
@@ -468,10 +509,16 @@ static RvkResult rvk_create_commands(RvkDevice *device) {
     buffer_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
     buffer_info.commandPool = device->command_pool;
     buffer_info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-    buffer_info.commandBufferCount = 1;
-    result = device->vk.AllocateCommandBuffers(device->device, &buffer_info, &device->command_buffer);
-    if (result != VK_SUCCESS) {
-        return rvk_check(device, result, "vkAllocateCommandBuffers");
+    buffer_info.commandBufferCount = 2;
+    {
+        VkCommandBuffer command_buffers[2];
+
+        result = device->vk.AllocateCommandBuffers(device->device, &buffer_info, command_buffers);
+        if (result != VK_SUCCESS) {
+            return rvk_check(device, result, "vkAllocateCommandBuffers");
+        }
+        device->command_buffer = command_buffers[0];
+        device->upload_command_buffer = command_buffers[1];
     }
 
     memset(&semaphore_info, 0, sizeof(semaphore_info));
@@ -487,6 +534,10 @@ static RvkResult rvk_create_commands(RvkDevice *device) {
     result = device->vk.CreateFence(device->device, &fence_info, NULL, &device->in_flight);
     if (result != VK_SUCCESS) {
         return rvk_check(device, result, "vkCreateFence");
+    }
+    result = device->vk.CreateFence(device->device, &fence_info, NULL, &device->upload_fence);
+    if (result != VK_SUCCESS) {
+        return rvk_check(device, result, "vkCreateFence(upload)");
     }
     return RVK_OK;
 }
@@ -576,12 +627,27 @@ RvkResult rvk_create(const RvkInitInfo *info, RvkDevice **out_device) {
         rvk_destroy(device);
         return result;
     }
-    result = rvk_create_render_pass(device);
+    result = rvk_create_depth_resources(device);
+    if (result != RVK_OK) {
+        rvk_destroy(device);
+        return result;
+    }
+    result = rvk_create_render_passes(device);
     if (result != RVK_OK) {
         rvk_destroy(device);
         return result;
     }
     result = rvk_create_framebuffers(device);
+    if (result != RVK_OK) {
+        rvk_destroy(device);
+        return result;
+    }
+    result = rvk_create_gpu_resources(device);
+    if (result != RVK_OK) {
+        rvk_destroy(device);
+        return result;
+    }
+    result = rvk_create_pipelines(device);
     if (result != RVK_OK) {
         rvk_destroy(device);
         return result;
@@ -598,10 +664,16 @@ void rvk_destroy(RvkDevice *device) {
     if (device->device != VK_NULL_HANDLE && device->vk.DeviceWaitIdle != NULL) {
         device->vk.DeviceWaitIdle(device->device);
     }
+    rvk_destroy_pipelines(device);
+    rvk_destroy_gpu_resources(device);
     rvk_destroy_framebuffers(device);
-    rvk_destroy_render_pass(device);
+    rvk_destroy_render_passes(device);
+    rvk_destroy_depth_resources(device);
     rvk_destroy_swapchain(device);
 
+    if (device->upload_fence != VK_NULL_HANDLE && device->vk.DestroyFence != NULL) {
+        device->vk.DestroyFence(device->device, device->upload_fence, NULL);
+    }
     if (device->in_flight != VK_NULL_HANDLE && device->vk.DestroyFence != NULL) {
         device->vk.DestroyFence(device->device, device->in_flight, NULL);
     }

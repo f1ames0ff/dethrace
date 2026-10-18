@@ -21,6 +21,12 @@ if(DETHRACE_VULKAN)
     target_compile_definitions(dethrace_obj PUBLIC DETHRACE_VULKAN)
 endif()
 
+if(DETHRACE_RENDER_VK)
+    target_compile_definitions(dethrace_obj PUBLIC DETHRACE_RENDER_VK)
+    target_link_libraries(dethrace_obj PUBLIC render_vk)
+    target_include_directories(dethrace_obj PRIVATE "${CMAKE_SOURCE_DIR}/lib/BRender-v1.3.2/core/fw/ddi")
+endif()
+
 if(MSVC_42_FOR_RECCMP)
 # do nothing
 elseif(MSVC)
@@ -180,6 +186,13 @@ target_sources(dethrace_obj PRIVATE
     # pc-dos/dossys.c
 )
 
+if(DETHRACE_RENDER_VK)
+    target_sources(dethrace_obj PRIVATE
+        common/render_vk_bridge.c
+        common/render_vk_bridge.h
+    )
+endif()
+
 if(MSVC_42_FOR_RECCMP)
     target_sources(dethrace_obj PRIVATE pc-win95/win95net.c)
 else()
@@ -220,6 +233,9 @@ else()
 endif()
 
 target_link_libraries(dethrace PRIVATE dethrace_obj compile_with_werror)
+if(DETHRACE_RENDER_VK)
+    target_link_libraries(dethrace PRIVATE render_vk)
+endif()
 target_sources(dethrace PRIVATE main.c)
 
 if(DETHRACE_IDE_ROOT_DIR)

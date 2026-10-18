@@ -18,6 +18,7 @@
 #include "loadsave.h"
 #include "mainloop.h"
 #include "mainmenu.h"
+#include "newgame.h"
 #include "netgame.h"
 #include "network.h"
 #include "opponent.h"
@@ -534,6 +535,13 @@ void DoGame(void) {
             LoadRaceInfo(gProgram_state.current_race_index, &gCurrent_race);
             FillInRaceInfo(&gCurrent_race);
             DisposeRaceInfo(&gCurrent_race);
+        } else if (harness_game_config.render_vk_mode && getenv("RVK_AUTOSTART") != NULL) {
+            LoadRaceInfo(gProgram_state.current_race_index, &gCurrent_race);
+            FillInRaceInfo(&gCurrent_race);
+            gProgram_state.view_type = eVT_Scene;
+            gOpponent_index = 0;
+            gDisallow_abandon_race = 0;
+            options_result = eSO_continue;
         } else {
             do {
                 options_result = DoSelectRace(&second_select_race);
@@ -592,14 +600,18 @@ void DoGame(void) {
                             && gProgram_state.prog_status == eProg_game_ongoing
                             && !gAbandon_game);
                     } else {
-                        do {
-                            options_result = DoGridPosition();
-                            if (options_result == eSO_main_menu_invoked) {
-                                DoMainMenuScreen(0, 1, 1);
-                            }
-                        } while (options_result == eSO_main_menu_invoked
-                            && gProgram_state.prog_status == eProg_game_ongoing
-                            && !gAbandon_game);
+                        if (harness_game_config.render_vk_mode && getenv("RVK_AUTOSTART") != NULL) {
+                            options_result = eSO_continue;
+                        } else {
+                            do {
+                                options_result = DoGridPosition();
+                                if (options_result == eSO_main_menu_invoked) {
+                                    DoMainMenuScreen(0, 1, 1);
+                                }
+                            } while (options_result == eSO_main_menu_invoked
+                                && gProgram_state.prog_status == eProg_game_ongoing
+                                && !gAbandon_game);
+                        }
                         SetInitialPositions(&gCurrent_race);
                     }
                     if (gProgram_state.prog_status == eProg_game_starting
@@ -710,6 +722,15 @@ void InitialiseProgramState(void) {
 void DoProgram(void) {
     InitialiseProgramState();
     do {
+#ifdef DETHRACE_RENDER_VK
+        if (harness_game_config.render_vk_mode && getenv("RVK_AUTOSTART") != NULL
+            && gProgram_state.prog_status == eProg_intro) {
+            if (DoOnePlayerStart()) {
+                gProgram_state.prog_status = eProg_game_starting;
+                continue;
+            }
+        }
+#endif
         switch (gProgram_state.prog_status) {
         case eProg_intro:
             DisposeGameIfNecessary();

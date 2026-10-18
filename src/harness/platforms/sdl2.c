@@ -7,12 +7,16 @@
 #include "sdl2_scancode_map.h"
 #include "sdl2_syms.h"
 
-#ifdef DETHRACE_VULKAN
-#include "platforms/vulkan/vk_present.h"
-#include "platforms/vulkan/vulkan_probe.h"
+#if defined(DETHRACE_VULKAN) || defined(DETHRACE_RENDER_VK)
+#include <vulkan/vulkan.h>
 #if SDL_VERSION_ATLEAST(2, 0, 6)
 #include <SDL_vulkan.h>
 #endif
+#endif
+
+#ifdef DETHRACE_VULKAN
+#include "platforms/vulkan/vk_present.h"
+#include "platforms/vulkan/vulkan_probe.h"
 #endif
 
 #include "platforms/platform_viewport.h"
@@ -38,9 +42,12 @@ static br_uint_32 key_state[8];
 
 static tHarness_viewport viewport;
 
+#if defined(DETHRACE_VULKAN) || defined(DETHRACE_RENDER_VK)
+static int SDL2_LoadVulkanSymbols(void);
+#endif
+
 #ifdef DETHRACE_VULKAN
 static int gVulkan_active;
-static int SDL2_LoadVulkanSymbols(void);
 static void SDL2_Vulkan_FillHost(tVulkan_host* host, SDL_Window* w);
 #endif
 
@@ -108,7 +115,7 @@ static int SDL2_Harness_SetWindowPos(void* hWnd, int x, int y, int nWidth, int n
 static void SDL2_Harness_DestroyWindow(void) {
     // SDL2_GL_DeleteContext(context);
 #ifdef DETHRACE_VULKAN
-    if (gVulkan_active) {
+    if (!harness_game_config.render_vk_mode && gVulkan_active) {
         VkPresent_Shutdown();
         gVulkan_active = 0;
     }
@@ -167,6 +174,11 @@ static void SDL2_Harness_ProcessWindowMessages(void) {
         case SDL_WINDOWEVENT:
             if (event.window.event == SDL_WINDOWEVENT_RESIZED) {
                 calculate_viewport(event.window.data1, event.window.data2);
+#ifdef DETHRACE_RENDER_VK
+                if (harness_game_config.render_vk_mode && gHarness_platform.RenderVk_OnResize != NULL) {
+                    gHarness_platform.RenderVk_OnResize(event.window.data1, event.window.data2);
+                }
+#endif
 #ifdef DETHRACE_VULKAN
                 if (gVulkan_active) {
                     VkPresent_OnResize(event.window.data1, event.window.data2);
@@ -326,6 +338,21 @@ static void SDL2_Harness_CreateWindow(const char* title, int width, int height, 
         LOG_PANIC("vkrend is not available in this build");
 #endif
 
+#ifdef DETHRACE_RENDER_VK
+    } else if (window_type == eWindow_type_render_vk) {
+        if (SDL2_LoadVulkanSymbols() != 0) {
+            LOG_PANIC("SDL2 does not provide the Vulkan API (SDL 2.0.6 or newer required)");
+        }
+        window = SDL2_CreateWindow(title,
+            SDL_WINDOWPOS_CENTERED,
+            SDL_WINDOWPOS_CENTERED,
+            window_width, window_height,
+            extra_window_flags | SDL_WINDOW_VULKAN);
+        if (window == NULL) {
+            LOG_PANIC2("Failed to create a Vulkan window: %s", SDL2_GetError());
+        }
+#endif
+
     } else {
         int vulkan_started = 0;
 
@@ -432,6 +459,10 @@ static void SDL2_Harness_Swap(br_pixelmap* back_buffer) {
     uint8_t* src_pixels;
     br_uint_32* dest_pixels;
 
+    if (harness_game_config.render_vk_mode) {
+        return;
+    }
+
     SDL2_Harness_ProcessWindowMessages();
 
 #ifdef DETHRACE_VULKAN
@@ -466,6 +497,9 @@ static void SDL2_Harness_Swap(br_pixelmap* back_buffer) {
 
 static void SDL2_Harness_PaletteChanged(br_colour entries[256]) {
     int i;
+    if (harness_game_config.render_vk_mode) {
+        return;
+    }
     for (i = 0; i < 256; i++) {
         converted_palette[i] = (0xffu << 24 | BR_RED(entries[i]) << 16 | BR_GRN(entries[i]) << 8 | BR_BLU(entries[i]));
     }
@@ -490,7 +524,7 @@ static void SDL2_Harness_GetViewport(int* x, int* y, float* width_multipler, flo
     *height_multiplier = viewport.scale_y;
 }
 
-#ifdef DETHRACE_VULKAN
+#if defined(DETHRACE_VULKAN) || defined(DETHRACE_RENDER_VK)
 typedef struct {
     int (*LoadLibrary)(const char* path);
     void (*UnloadLibrary)(void);
@@ -551,7 +585,9 @@ static int SDL2_Vulkan_CreateSurface_Normalized(void* window, VkInstance instanc
 static const char* SDL2_Vulkan_GetError(void) {
     return SDL2_GetError();
 }
+#endif
 
+#ifdef DETHRACE_VULKAN
 static void SDL2_Vulkan_FillHost(tVulkan_host* host, SDL_Window* w) {
     host->load_library = sdl2_vulkan_syms.LoadLibrary;
     host->unload_library = sdl2_vulkan_syms.UnloadLibrary;
@@ -581,6 +617,58 @@ static int SDL2_Harness_FillVkrendCallbacks(br_device_vkrend_callback_procs* cal
     callbacks->get_error = SDL2_Vulkan_GetError;
     callbacks->get_instance_extensions = SDL2_Vulkan_GetInstanceExtensions_Normalized;
     callbacks->create_surface = SDL2_Vulkan_CreateSurfaceVkrend;
+    return 0;
+}
+#endif
+
+#ifdef DETHRACE_RENDER_VK
+static int SDL2_RenderVk_Load(void* user) {
+    if (sdl2_vulkan_syms.LoadLibrary == NULL) {
+        return 1;
+    }
+    return sdl2_vulkan_syms.LoadLibrary(NULL) == 0 ? 0 : 1;
+}
+
+static void SDL2_RenderVk_Unload(void* user) {
+    if (sdl2_vulkan_syms.UnloadLibrary != NULL) {
+        sdl2_vulkan_syms.UnloadLibrary();
+    }
+}
+
+static RvkGetInstanceProcAddrFn SDL2_RenderVk_GetInstanceProcAddr(void* user) {
+    if (sdl2_vulkan_syms.GetVkGetInstanceProcAddr == NULL) {
+        return NULL;
+    }
+    return (RvkGetInstanceProcAddrFn)sdl2_vulkan_syms.GetVkGetInstanceProcAddr();
+}
+
+static int SDL2_RenderVk_GetInstanceExtensions(void* user, uint32_t* count, const char** names, uint32_t max_names) {
+    return SDL2_Vulkan_GetInstanceExtensions_Normalized(window, count, names, max_names);
+}
+
+static int SDL2_RenderVk_CreateSurface(void* user, uint64_t instance, uint64_t* surface) {
+    VkSurfaceKHR s = VK_NULL_HANDLE;
+
+    if (SDL2_Vulkan_CreateSurface_Normalized(window, (VkInstance)instance, &s) != 0) {
+        fprintf(stderr, "render_vk: SDL_Vulkan_CreateSurface failed: %s\n", SDL2_GetError());
+        return 1;
+    }
+    *surface = (uint64_t)s;
+    return 0;
+}
+
+static const char* SDL2_RenderVk_GetError(void* user) {
+    return SDL2_GetError();
+}
+
+static int SDL2_RenderVk_FillPlatform(RvkPlatform* platform) {
+    platform->user = NULL;
+    platform->load_vulkan = SDL2_RenderVk_Load;
+    platform->unload_vulkan = SDL2_RenderVk_Unload;
+    platform->get_instance_proc_addr = SDL2_RenderVk_GetInstanceProcAddr;
+    platform->get_instance_extensions = SDL2_RenderVk_GetInstanceExtensions;
+    platform->create_surface = SDL2_RenderVk_CreateSurface;
+    platform->get_error = SDL2_RenderVk_GetError;
     return 0;
 }
 #endif
@@ -618,6 +706,10 @@ static int SDL2_Harness_Platform_Init(tHarness_platform* platform) {
             Vulkan_Probe(sdl2_vulkan_syms.LoadLibrary, sdl2_vulkan_syms.UnloadLibrary, sdl2_vulkan_syms.GetVkGetInstanceProcAddr, SDL2_GetError);
         }
     }
+#endif
+#ifdef DETHRACE_RENDER_VK
+    platform->RenderVk_FillPlatform = SDL2_RenderVk_FillPlatform;
+    platform->RenderVk_OnResize = NULL;
 #endif
     return 0;
 };

@@ -179,11 +179,10 @@ add_library(compile_with_werror INTERFACE)
 add_subdirectory(src/harness)
 add_subdirectory(src/S3)
 add_subdirectory(src/smackw32)
-add_subdirectory(src/DETHRACE)
-
 if(DETHRACE_RENDER_VK AND NOT MSVC_42_FOR_RECCMP)
     add_subdirectory(src/render_vk)
 endif()
+add_subdirectory(src/DETHRACE)
 
 if(DETHRACE_WERROR)
     if(MSVC)

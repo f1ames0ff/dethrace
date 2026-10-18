@@ -1,9 +1,10 @@
 # render_vk architecture
 
-Status: N0 is implemented and verified. The new renderer is a clean C11 Vulkan module in
-`src/render_vk/`. It has no BRender headers, types, callbacks or link dependency. The legacy
-renderer remains a behavioral reference for what is drawn and in what order, and a fallback for
-software/OpenGL; it is not the base of the new renderer.
+Status: N0 is implemented and verified, and the first in-game race frame is rendered by the new
+renderer. The new renderer is a clean C11 Vulkan module in `src/render_vk/`. It has no BRender
+headers, types, callbacks or link dependency. The legacy renderer remains a behavioral reference
+for what is drawn and in what order, and a fallback for software/OpenGL; it is not the base of the
+new renderer.
 
 ## Decision
 
@@ -116,8 +117,8 @@ smoke executables need an SDL platform. SDL3 support requires SDL 3.2.0 or newer
 ### N0 evidence
 
 - Debug build with `DETHRACE_VULKAN=OFF`, `DETHRACE_RENDER_VK=ON`: library and SDL2 smoke build.
-- Full `dethrace` target builds with the same configuration; the new renderer is not linked into
-  the game yet.
+- Full `dethrace` target builds with the same configuration; the new renderer is linked into the
+  game when `DETHRACE_RENDER_VK=ON` and selected with `--render-vk`.
 - 90-frame smoke with `--validate --resize-test`: 640x480 -> 800x600 -> 640x480, zero validation
   warnings/errors, exit 0.
 - 90-frame smoke with `--validate --acquire-ood-test`: window resized without notifying the
@@ -130,15 +131,38 @@ smoke executables need an SDL platform. SDL3 support requires SDL 3.2.0 or newer
   and no Vulkan import library.
 - `rg "brender|br_actor|br_model|br_material|br_pixelmap|Br[A-Z]" src/render_vk` returns nothing.
 
+### First in-game race frame
+
+The new path is selected with `--render-vk`. A test hook, `RVK_AUTOSTART=1`, starts a one-player
+race without menu input; it is a verification aid, not a shipping default. The log shows
+`VKREND: race loop started`, and the new renderer builds and submits a world pass every frame. The
+first captured race frame is `docs/images/render-vk-first-race.png`.
+
+The frame uses:
+
+- `src/DETHRACE/common/render_vk_bridge.c` for BRender data extraction and the CPU 2D overlay;
+- `rvk_draw_world` with per-actor model matrices, a shared view-projection matrix, per-draw
+  materials and textures;
+- `rvk_draw_overlay` for the existing 16-bit/8-bit HUD surface while the UI is ported;
+- `rvk_create_texture` with bridge-side texture caching, and prepared `v11group` data for track
+  models whose original vertex/face arrays were released by `DodgyModelUpdate`.
+
+The first measured scene has about 3408 draws, 38822 vertices and 66261 indices. This is a
+correctness milestone, not a performance result: there is no batching, indirect submission,
+shadows, mirror, cockpit target, smoke/spark effect or full UI pass yet. The CPU bridge walks the
+live BRender scene every frame. The 200 FPS target remains unmeasured.
+
 ## N1 plan
 
-N1 adds one track and one car to a standalone viewer:
+The runtime bridge (N3) was brought forward to prove the boundary. N1 still needs the standalone
+viewer and offline importer:
 
 1. Offline importer (BRender allowed as parser) writes a versioned neutral scene: meshes, indices,
    submeshes, bounds, materials, texture blobs and node transforms.
 2. `rvk_mesh`, `rvk_texture`, `rvk_material` and one textured pipeline with depth.
 3. A fixed camera and a screenshot path; compare against a software reference.
-4. A runtime bridge prototype for one car, to prove mutable transforms and materials.
+4. Keep the runtime bridge as the game-facing path; add dirty tracking and batching before it can
+   be considered a renderer core.
 
 N1 exit: imported counts match the source, the viewer links no BRender, the renderer includes no
 BRender headers, one screenshot matches the software reference within the comparator tolerance,
@@ -169,9 +193,11 @@ for 640x480; the stride now uses `floor`. References still need to be captured a
 
 ## Game integration
 
-`RenderAFrame` remains byte-for-byte for software/OpenGL. A parallel new-path function selects the
-new renderer through the harness. It computes a neutral camera, viewport, scene list and UI list;
-it does not call `BrZbSceneRenderBegin/Add/End` or `BrPixelmapDoubleBuffer`.
+`RenderAFrame` keeps the legacy calls for software/OpenGL. Under `DETHRACE_RENDER_VK` and
+`--render-vk`, it replaces the `BrZbSceneRenderBegin/Add/End` block with
+`GameRender_BeginScene`/`GameRender_AddUniverse`/`GameRender_EndScene`; the point lights, shadows,
+mirror and effects blocks are not called yet. The CPU 2D code still writes the existing HUD
+surface, and `GameRender_Swap` presents the new renderer's world plus that surface as an overlay.
 
 The legacy path stays selectable for A/B. The new path must not coexist with the legacy vkrend
 driver or the harness Vulkan presenter in one process: one component owns the Vulkan instance,

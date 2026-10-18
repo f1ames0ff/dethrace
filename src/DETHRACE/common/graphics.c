@@ -13,6 +13,7 @@
 #include "globvrbm.h"
 #include "globvrpb.h"
 #include "grafdata.h"
+#include "harness/config.h"
 #include "harness/hooks.h"
 #include "harness/os.h"
 #include "harness/trace.h"
@@ -29,6 +30,9 @@
 #include "powerup.h"
 #include "pratcam.h"
 #include "replay.h"
+#ifdef DETHRACE_RENDER_VK
+#include "render_vk_bridge.h"
+#endif
 #include "sound.h"
 #include "spark.h"
 #include "trig.h"
@@ -1951,8 +1955,18 @@ void RenderAFrame(int pDepth_mask_on) {
 
     the_time = GetTotalTime();
     old_pixels = gRender_screen->pixels;
+#ifdef DETHRACE_RENDER_VK
+    if (harness_game_config.render_vk_mode) {
+        GameRender_Begin2D(gBack_screen);
+    }
+#endif
     cockpit_on = gProgram_state.cockpit_on && gProgram_state.cockpit_image_index >= 0 && !gMap_mode;
     gMirror_on__graphics = gProgram_state.mirror_on && cockpit_on && gProgram_state.which_view == eView_forward;
+#ifdef DETHRACE_RENDER_VK
+    if (harness_game_config.render_vk_mode) {
+        gMirror_on__graphics = 0;
+    }
+#endif
     if (gMap_mode) {
         real_origin_x = gBack_screen->origin_x;
         real_origin_y = gBack_screen->origin_y;
@@ -2063,18 +2077,23 @@ void RenderAFrame(int pDepth_mask_on) {
     gRendering_mirror = 0;
     DoSpecialCameraEffect(gCamera, &gCamera_to_world);
 
+#ifdef DETHRACE_RENDER_VK
+    if (!harness_game_config.render_vk_mode)
+#endif
+    {
 #ifdef DETHRACE_3DFX_PATCH
-    if (!ConditionallyFillWithSky(gRender_screen->width == gBack_screen->width ? gBack_screen : gRender_screen)
+        if (!ConditionallyFillWithSky(gRender_screen->width == gBack_screen->width ? gBack_screen : gRender_screen)
 #else
-    if (!ConditionallyFillWithSky(gRender_screen)
+        if (!ConditionallyFillWithSky(gRender_screen)
 #endif
-        && !gProgram_state.cockpit_on
-        && !(gAction_replay_camera_mode && gAction_replay_mode)) {
+            && !gProgram_state.cockpit_on
+            && !(gAction_replay_camera_mode && gAction_replay_mode)) {
 #ifdef DETHRACE_3DFX_PATCH
-        if (!gBlitting_is_slow)
+            if (!gBlitting_is_slow)
 #endif
-        {
-            ExternalSky(gRender_screen, gDepth_buffer, gCamera, &gCamera_to_world);
+            {
+                ExternalSky(gRender_screen, gDepth_buffer, gCamera, &gCamera_to_world);
+            }
         }
     }
 
@@ -2089,22 +2108,33 @@ void RenderAFrame(int pDepth_mask_on) {
     for (i = 0; i < (gMap_mode && !gSmall_frames_are_slow ? 3 : 1); i++)
 #endif
     {
-        RenderShadows(gUniverse_actor, &gProgram_state.track_spec, gCamera, &gCamera_to_world);
-        BrZbSceneRenderBegin(gUniverse_actor, gCamera, gRender_screen, gDepth_buffer);
-        ProcessNonTrackActors(gRender_screen, gDepth_buffer, gCamera, &gCamera_to_world, &old_camera_matrix);
-        ProcessTrack(gUniverse_actor, &gProgram_state.track_spec, gCamera, &gCamera_to_world, 0);
-        RenderLollipops();
+#ifdef DETHRACE_RENDER_VK
+        if (harness_game_config.render_vk_mode) {
+            if (i == 0 && !gMap_mode) {
+                GameRender_BeginScene(gCamera);
+                GameRender_AddUniverse(gUniverse_actor);
+                GameRender_EndScene();
+            }
+        } else
+#endif
+        {
+            RenderShadows(gUniverse_actor, &gProgram_state.track_spec, gCamera, &gCamera_to_world);
+            BrZbSceneRenderBegin(gUniverse_actor, gCamera, gRender_screen, gDepth_buffer);
+            ProcessNonTrackActors(gRender_screen, gDepth_buffer, gCamera, &gCamera_to_world, &old_camera_matrix);
+            ProcessTrack(gUniverse_actor, &gProgram_state.track_spec, gCamera, &gCamera_to_world, 0);
+            RenderLollipops();
 
-        DepthEffectSky(gRender_screen, gDepth_buffer, gCamera, &gCamera_to_world);
-        DepthEffect(gRender_screen, gDepth_buffer, gCamera, &gCamera_to_world);
-        if (!gAusterity_mode) {
-            ProcessTrack(gUniverse_actor, &gProgram_state.track_spec, gCamera, &gCamera_to_world, 1);
+            DepthEffectSky(gRender_screen, gDepth_buffer, gCamera, &gCamera_to_world);
+            DepthEffect(gRender_screen, gDepth_buffer, gCamera, &gCamera_to_world);
+            if (!gAusterity_mode) {
+                ProcessTrack(gUniverse_actor, &gProgram_state.track_spec, gCamera, &gCamera_to_world, 1);
+            }
+            RenderSplashes();
+            RenderSmoke(gRender_screen, gDepth_buffer, gCamera, &gCamera_to_world, gFrame_period);
+            RenderSparks(gRender_screen, gDepth_buffer, gCamera, &gCamera_to_world, gFrame_period);
+            RenderProximityRays(gRender_screen, gDepth_buffer, gCamera, &gCamera_to_world, gFrame_period);
+            BrZbSceneRenderEnd();
         }
-        RenderSplashes();
-        RenderSmoke(gRender_screen, gDepth_buffer, gCamera, &gCamera_to_world, gFrame_period);
-        RenderSparks(gRender_screen, gDepth_buffer, gCamera, &gCamera_to_world, gFrame_period);
-        RenderProximityRays(gRender_screen, gDepth_buffer, gCamera, &gCamera_to_world, gFrame_period);
-        BrZbSceneRenderEnd();
     }
 #ifdef DETHRACE_3DFX_PATCH
     PDLockRealBackScreen(1);

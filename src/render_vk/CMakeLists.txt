@@ -1,7 +1,10 @@
 add_library(render_vk STATIC
     src/rvk_api.c
     src/rvk_context.c
+    src/rvk_draw.c
     src/rvk_frame.c
+    src/rvk_pipeline.c
+    src/rvk_resources.c
     src/rvk_swapchain.c
 )
 

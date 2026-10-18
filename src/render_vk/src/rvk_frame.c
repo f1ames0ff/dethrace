@@ -73,6 +73,7 @@ RvkResult rvk_begin_frame(RvkDevice *device) {
     device->frame_start_ticks = start_ticks;
     device->frame_open = 1;
     device->pass_open = 0;
+    device->world_rendered = 0;
     device->stats.pass_count = 0;
     return RVK_OK;
 }
@@ -181,6 +182,7 @@ RvkResult rvk_end_frame(RvkDevice *device) {
     device->stats.cpu_frame_ms = (float)rvk_ticks_to_ms(device, end_ticks - device->frame_start_ticks);
     device->stats.frame_index++;
     device->frame_open = 0;
+    device->world_rendered = 0;
 
     if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR) {
         device->pending_resize = 1;

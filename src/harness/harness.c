@@ -332,6 +332,7 @@ int Harness_Init(int* argc, char* argv[]) {
     harness_game_config.vulkan_mode = 0;
     harness_game_config.require_vulkan = 0;
     harness_game_config.vkrend_mode = 0;
+    harness_game_config.render_vk_mode = 0;
 
     // install signal handler
     harness_game_config.install_signalhandler = 1;
@@ -356,6 +357,20 @@ int Harness_Init(int* argc, char* argv[]) {
     }
     if (harness_game_config.vkrend_mode && harness_game_config.opengl_3dfx_mode) {
         fprintf(stderr, "--vkrend cannot be combined with --opengl/Emulate3DFX\n");
+        return 1;
+    }
+#endif
+#ifdef DETHRACE_RENDER_VK
+    if (harness_game_config.render_vk_mode && harness_game_config.vkrend_mode) {
+        fprintf(stderr, "--render-vk cannot be combined with --vkrend\n");
+        return 1;
+    }
+    if (harness_game_config.render_vk_mode && harness_game_config.vulkan_mode) {
+        fprintf(stderr, "--render-vk cannot be combined with --vulkan/--require-vulkan\n");
+        return 1;
+    }
+    if (harness_game_config.render_vk_mode && harness_game_config.opengl_3dfx_mode) {
+        fprintf(stderr, "--render-vk cannot be combined with --opengl/Emulate3DFX\n");
         return 1;
     }
 #endif
@@ -392,7 +407,7 @@ int Harness_Init(int* argc, char* argv[]) {
         Harness_DetectGameMode();
     }
 
-    if ((harness_game_config.opengl_3dfx_mode || harness_game_config.vkrend_mode) && !harness_game_info.data_dir_has_3dfx_assets) {
+    if ((harness_game_config.opengl_3dfx_mode || harness_game_config.vkrend_mode || harness_game_config.render_vk_mode) && !harness_game_info.data_dir_has_3dfx_assets) {
         printf("Error: data directory does not contain 3dfx assets so the selected 3dfx mode cannot be used\n");
         exit(1);
     }
@@ -520,6 +535,14 @@ int Harness_ProcessCommandLine(int* argc, char* argv[]) {
             return 1;
 #else
             harness_game_config.vkrend_mode = 1;
+#endif
+            consumed = 1;
+        } else if (strcasecmp(argv[i], "--render-vk") == 0) {
+#ifndef DETHRACE_RENDER_VK
+            fprintf(stderr, "--render-vk is not available in this build; rebuild with -DDETHRACE_RENDER_VK=ON\n");
+            return 1;
+#else
+            harness_game_config.render_vk_mode = 1;
 #endif
             consumed = 1;
         } else if (strcasecmp(argv[i], "--require-vulkan") == 0) {

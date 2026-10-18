@@ -146,6 +146,12 @@ if(DETHRACE_VULKAN)
     target_include_directories(harness SYSTEM PRIVATE "${DETHRACE_VULKAN_INCLUDE_DIR}")
 endif()
 
+if(DETHRACE_RENDER_VK)
+    target_compile_definitions(harness PRIVATE DETHRACE_RENDER_VK)
+    target_include_directories(harness PRIVATE "${CMAKE_SOURCE_DIR}/src/render_vk/include")
+    target_include_directories(harness SYSTEM PRIVATE "${DETHRACE_VULKAN_INCLUDE_DIR}")
+endif()
+
 if(DETHRACE_PLATFORM_SDL_DYNAMIC)
     target_compile_definitions(harness PRIVATE DETHRACE_SDL_DYNAMIC)
     target_link_libraries(harness PRIVATE ${CMAKE_DL_LIBS})

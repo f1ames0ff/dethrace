@@ -28,6 +28,22 @@ typedef enum RvkPass {
     RVK_PASS_MAIN = 0
 } RvkPass;
 
+typedef uint32_t RvkTexture;
+
+typedef struct RvkVertex {
+    float position[3];
+    float normal[3];
+    float uv[2];
+} RvkVertex;
+
+typedef struct RvkWorldDraw {
+    uint32_t first_index;
+    uint32_t index_count;
+    float model[16];
+    RvkTexture texture;
+    float tint[4];
+} RvkWorldDraw;
+
 typedef void (*RvkLogFn)(void *user, int level, const char *message);
 typedef void (*RvkProc)(void);
 typedef RvkProc (*RvkGetInstanceProcAddrFn)(void);
@@ -79,6 +95,14 @@ RvkResult rvk_resize(RvkDevice *device, uint32_t width, uint32_t height);
 RvkResult rvk_begin_frame(RvkDevice *device);
 RvkResult rvk_begin_pass(RvkDevice *device, const RvkPassInfo *info);
 void rvk_end_pass(RvkDevice *device);
+RvkResult rvk_create_texture(RvkDevice *device, const uint8_t *rgba8, uint32_t width, uint32_t height, RvkTexture *out_texture);
+void rvk_destroy_texture(RvkDevice *device, RvkTexture texture);
+RvkResult rvk_draw_world(RvkDevice *device, const float view_proj[16],
+    const RvkVertex *vertices, uint32_t vertex_count,
+    const uint32_t *indices, uint32_t index_count,
+    const RvkWorldDraw *draws, uint32_t draw_count,
+    const float clear_color[4]);
+RvkResult rvk_draw_overlay(RvkDevice *device, const uint32_t *pixels, uint32_t width, uint32_t height);
 RvkResult rvk_end_frame(RvkDevice *device);
 void rvk_wait_idle(RvkDevice *device);
 const RvkStats *rvk_get_stats(const RvkDevice *device);
