@@ -1425,6 +1425,19 @@ void EnableLights(void) {
 // FUNCTION: CARM95 0x004b405c
 void ProcessShadow(tCar_spec* pCar, br_actor* pWorld, tTrack_spec* pTrack_spec, br_actor* pCamera, br_matrix34* pCamera_to_world_transform, br_scalar pDistance_factor) {
     int i;
+#ifdef DETHRACE_FIX_BUGS
+    {
+        static br_boolean no_shadows_checked;
+        static br_boolean no_shadows;
+
+        if (!no_shadows_checked) {
+            no_shadows_checked = BR_TRUE;
+            no_shadows = getenv("VKREND_NO_SHADOWS") != NULL;
+        }
+        if (no_shadows)
+            return;
+    }
+#endif
     int j;
     int face_count;
     int force_shadow;

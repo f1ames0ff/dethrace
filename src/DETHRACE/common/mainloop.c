@@ -37,6 +37,8 @@
 #include "world.h"
 #include <stdlib.h>
 
+#define SIM_STEP_MS 20
+
 // GLOBAL: CARM95 0x00514afc
 int gNasty_kludgey_cockpit_variable;
 
@@ -571,11 +573,17 @@ tRace_result MainGameLoop(void) {
     int tried_to_allocate_AR;
     int i;
     int bonus;
+    tU32 render_period;
+    tU32 sim_step;
+    tU32 sim_accumulator;
+    tU32 sim_tick_time;
+    int sim_due;
 
 #ifdef DETHRACE_FIX_BUGS
     BrLogPrintf("VKREND: race loop started\n");
 #endif
 
+    sim_accumulator = SIM_STEP_MS;
     tried_to_allocate_AR = 0;
     gCar_to_view = &gProgram_state.current_car;
     gOld_camera_time = 0;
@@ -590,6 +598,7 @@ tRace_result MainGameLoop(void) {
     gLast_replay_frame_time = PDGetTotalTime();
     gLast_tick_count = GetTotalTime();
     gActual_last_tick_count = gLast_tick_count;
+    sim_tick_time = gLast_tick_count;
     gQueued_wasted_massages_count = 0;
     gWasted_flash_state = 0;
     gWasted_last_flash = 0;
@@ -627,28 +636,47 @@ tRace_result MainGameLoop(void) {
         }
         ResetGrooveFlags();
         MungeEngineNoise();
-        ServiceGameInRace();
         EnterUserMessage();
         UpdateFramePeriod(&camera_period);
-        if (!gAction_replay_mode) {
-            DoPowerupPeriodics(gFrame_period);
-        }
-        ResetLollipopQueue();
-        MungePalette();
-        if (!gAction_replay_mode) {
-            MungeOpponents(gFrame_period);
-            PollCarControls(gFrame_period);
-        }
-        PollCameraControls(camera_period);
-        if (!gAction_replay_mode) {
-            ControlOurCar(gFrame_period);
-            ApplyPhysicsToCars(gLast_tick_count - gRace_start, gFrame_period);
-            PipeCarPositions();
-            NetSendMessageStacks();
-            CheckRecoveryOfCars(gLast_tick_count - gRace_start + gFrame_period);
+        render_period = gFrame_period;
+        if (gAction_replay_mode || gNet_mode != eNet_mode_none) {
+            sim_due = 1;
+            sim_step = render_period;
         } else {
-            DoActionReplay(gFrame_period);
+            sim_accumulator += render_period;
+            if (sim_accumulator > 100) {
+                sim_accumulator = 100;
+            }
+            if (sim_accumulator >= SIM_STEP_MS) {
+                sim_accumulator -= SIM_STEP_MS;
+                sim_tick_time += SIM_STEP_MS;
+                sim_due = 1;
+                sim_step = SIM_STEP_MS;
+            } else {
+                sim_due = 0;
+                sim_step = 0;
+            }
         }
+        if (sim_due) {
+            if (!gAction_replay_mode) {
+                tU32 tick_time = (gNet_mode != eNet_mode_none ? gLast_tick_count : sim_tick_time) - gRace_start;
+
+                ServiceGameInRace();
+                DoPowerupPeriodics(sim_step);
+                ResetLollipopQueue();
+                MungeOpponents(sim_step);
+                PollCarControls(sim_step);
+                ControlOurCar(sim_step);
+                ApplyPhysicsToCars(tick_time, sim_step);
+                PipeCarPositions();
+                NetSendMessageStacks();
+                CheckRecoveryOfCars(tick_time + sim_step);
+            } else {
+                DoActionReplay(sim_step);
+            }
+        }
+        MungePalette();
+        PollCameraControls(camera_period);
         if (!gNasty_kludgey_cockpit_variable) {
             gNasty_kludgey_cockpit_variable = 1;
             ToggleCockpit();
@@ -661,26 +689,47 @@ tRace_result MainGameLoop(void) {
         gYon_squared = ((br_camera*)gCamera->type_data)->yon_z * ((br_camera*)gCamera->type_data)->yon_z
             * gYon_multiplier
             * gYon_multiplier;
-        if (!gAction_replay_mode) {
+        if (!gAction_replay_mode && sim_due) {
             CheckCheckpoints();
         }
         ChangingView();
-        MungeCarGraphics(gFrame_period);
+        if (sim_due) {
+            MungeCarGraphics(sim_step);
+        }
         FunkThoseTronics();
         GrooveThoseDelics();
-        DoWheelDamage(gFrame_period);
-        CalculateFrameRate();
-        MungePedestrians(gFrame_period);
-        CameraBugFix(&gProgram_state.current_car, camera_period);
-        if (!gAction_replay_mode) {
-            MungeHeadups();
-            ProcessOilSpills(gFrame_period);
+        if (sim_due) {
+            DoWheelDamage(sim_step);
         }
-        MungeShrapnel(gFrame_period);
+        CalculateFrameRate();
+        if (sim_due) {
+            MungePedestrians(sim_step);
+        }
+        CameraBugFix(&gProgram_state.current_car, camera_period);
+        if (!gAction_replay_mode && sim_due) {
+            tU32 saved_period = gFrame_period;
+
+            gFrame_period = sim_step;
+            MungeHeadups();
+            gFrame_period = saved_period;
+            ProcessOilSpills(sim_step);
+        }
+        if (sim_due) {
+            MungeShrapnel(sim_step);
+        }
         ChangeDepthEffect();
-        ServiceGameInRace();
+        if (sim_due) {
+            ServiceGameInRace();
+        }
         EnterUserMessage();
-        SkidsPerFrame();
+        if (sim_due) {
+            tU32 saved_period = gFrame_period;
+
+            gFrame_period = sim_step;
+            SkidsPerFrame();
+            gFrame_period = saved_period;
+        }
+        gFrame_period = render_period;
         if (!gWait_for_it) {
 #if defined(DETHRACE_FIX_BUGS)
             // Fixes issue where returning to race mode from the UI shows 2d elements in the wrong colors for half a second.
@@ -718,18 +767,48 @@ tRace_result MainGameLoop(void) {
                 DoMainMenuScreen(0, 0, 1);
                 GoingBackToRaceFromInterface();
                 AddLostTime(PDGetTotalTime() - start_menu_time);
+                sim_accumulator = SIM_STEP_MS;
+                sim_tick_time = GetTotalTime();
             }
         }
         if (!gAction_replay_mode) {
-            CheckTimer();
+            if (sim_due)
+                CheckTimer();
         } else {
-            PollActionReplayControls(gFrame_period);
+            PollActionReplayControls(render_period);
         }
         if (!gAction_replay_mode && gKnobbled_frame_period) {
             while (GetTotalTime() - frame_start_time < gKnobbled_frame_period) {
                 ;
             }
         }
+#ifdef DETHRACE_FIX_BUGS
+        {
+            static br_boolean fps_checked;
+            static br_boolean fps_enabled;
+            static tU32 fps_start;
+            static tU32 fps_frames;
+
+            if (!fps_checked) {
+                fps_checked = BR_TRUE;
+                fps_enabled = getenv("VKREND_FPS") != NULL;
+            }
+            if (fps_enabled) {
+                fps_frames++;
+                if (fps_frames >= 300) {
+                    tU32 fps_now = PDGetTotalTime();
+
+                    if (fps_start != 0 && fps_now > fps_start) {
+                        BrLogPrintf("VKREND-FPS: %u frames in %u ms = %.1f fps\n",
+                            fps_frames, fps_now - fps_start,
+                            1000.0 * fps_frames / (fps_now - fps_start));
+                    }
+                    fps_start = fps_now;
+                    fps_frames = 0;
+                }
+            }
+        }
+#endif
         if (!tried_to_allocate_AR) {
             tried_to_allocate_AR = 1;
             PrintMemoryDump(0, "JUST RENDERED 1ST STUFF");
