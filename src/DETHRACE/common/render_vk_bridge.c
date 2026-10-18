@@ -9,6 +9,7 @@
 #include "globvars.h"
 #include "graphics.h"
 #include "harness/hooks.h"
+#include "pedestrn.h"
 #include "harness/trace.h"
 #include "pd/sys.h"
 #include "v1db_p.h"
@@ -963,6 +964,25 @@ void GameRender_BeginScene(br_actor *camera) {
         return;
     }
     camera_data = (br_camera *)camera->type_data;
+    {
+        static float yon_base;
+        static int yon_base_valid;
+        const char *far_value = getenv("RVK_FAR_MULTIPLIER");
+        float multiplier = 3.0f;
+
+        if (far_value != NULL) {
+            char *end = NULL;
+            float parsed = (float)strtod(far_value, &end);
+            if (end != far_value && parsed > 0.0f) {
+                multiplier = parsed;
+            }
+        }
+        if (!yon_base_valid) {
+            yon_base = (float)gCamera_yon;
+            yon_base_valid = 1;
+        }
+        camera_data->yon_z = (br_scalar)(yon_base * multiplier);
+    }
     screen = gRender_screen;
     if (screen != NULL && screen->width != 0 && screen->height != 0) {
         origin_x = (br_scalar)(screen->origin_x - screen->width / 2) / (br_scalar)(screen->width / 2);
@@ -1023,6 +1043,18 @@ void GameRender_AddUniverse(br_actor *universe) {
         gForward_sky_actor->render_style = BR_RSTYLE_NONE;
     }
     GameRender_AddActor(universe, universe, NULL, NULL, BR_RSTYLE_DEFAULT);
+    {
+        int i;
+        for (i = 0; i < gNumber_of_lollipops; i++) {
+            br_actor *lollipop = gLollipops[i];
+            if (lollipop != NULL && lollipop->render_style == BR_RSTYLE_NONE) {
+                lollipop->render_style = BR_RSTYLE_FACES;
+                SetPedMaterialForRender(lollipop);
+                GameRender_AddActor(lollipop, universe, NULL, NULL, BR_RSTYLE_FACES);
+                lollipop->render_style = BR_RSTYLE_NONE;
+            }
+        }
+    }
     if (gRenderVk_draw_count > 0) {
         gRenderVk_scene_ready = 1;
     }
