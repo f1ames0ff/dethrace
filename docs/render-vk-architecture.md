@@ -149,9 +149,9 @@ The frame uses:
 - `rvk_create_texture` with bridge-side texture caching, and prepared `v11group` data for track
   models whose original vertex/face arrays were released by `DodgyModelUpdate`;
 - material opacity and colour-key handling. The world pipeline blends with source alpha, and the
-  fragment shader discards near-black texels when the material has colour keying enabled (the
-  BRender default unless `BR_MATF_DISABLE_COLOUR_KEY` is set). This removes black sprite
-  rectangles such as the car's spike sprite;
+  fragment shader currently discards near-black final texels unconditionally as a conservative
+  colour-key fallback. This removes black sprite rectangles such as the car's spike sprite;
+  material flags remain in the draw record for a later, exact colour-key pass;
 - an initial horizon pass. `HORIZON.MAT` is added after the world with depth testing disabled and
   a top-screen scissor, so the city panorama covers the background without covering the car or
   track. Dynamic horizon clipping is still to do.

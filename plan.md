@@ -125,8 +125,9 @@ bottleneck.
 The world and overlay passes, depth, textures, sampler/descriptor arrays and one frame in flight
 exist. BRender's reversed depth convention is mapped explicitly; without it the track occludes the
 car. `BR_RSTYLE_NONE` prunes the actor subtree, which keeps hidden car variants and their child
-parts (such as `FIN.DAT`) out of the frame. The world pipeline blends by source alpha and discards
-colour-keyed near-black texels, matching BRender's default sprite transparency. The first race
+parts (such as `FIN.DAT`) out of the frame. The world pipeline blends by source alpha and currently
+discards near-black final texels unconditionally as a conservative colour-key fallback; an exact
+per-material colour-key path remains. The first race
 scene submits about 3408 draws, 38638 vertices and 65949 indices because the bridge emits one draw
 per material run with no batching. An initial horizon pass is implemented with a no-depth sky
 pipeline and a fixed upper-screen scissor; dynamic horizon clipping, shadow, mirror, cockpit and
