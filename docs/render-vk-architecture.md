@@ -149,18 +149,24 @@ The frame uses:
 - `rvk_create_texture` with bridge-side texture caching, and prepared `v11group` data for track
   models whose original vertex/face arrays were released by `DodgyModelUpdate`.
 
-The first measured scene has about 3408 draws, 38822 vertices and 66261 indices. This is a
-correctness milestone, not a performance result: there is no batching, indirect submission,
-shadows, mirror, cockpit target, smoke/spark effect or full UI pass yet. The CPU bridge walks the
-live BRender scene every frame. The horizon/sky pass is also missing, so the track backdrop does
-not yet match the legacy capture. The 200 FPS target remains unmeasured.
+The first measured scene has about 3512 draws, 39917 vertices and 70020 indices. The CPU bridge
+walks the live BRender scene every frame with no batching, indirect submission, shadows, mirror,
+cockpit target, smoke/spark effect or full UI pass. The horizon/sky pass is also missing, so the
+track backdrop does not yet match the legacy capture.
+
+A preliminary performance run used the Release build, 640x480, IMMEDIATE present, `--fps=0` and
+`RVK_AUTOSTART=1` with `RVK_FPS_LOG=1`. One 60-second stationary start scene produced 1016-1052
+presented frames per second (59 one-second samples, about 1013 frames/s including the warm-up
+sample), with 3512 draws. This exceeds the 200 FPS target for this scene. It is not the formal N4
+acceptance: that still needs 5 x 60 s moving-race runs, p50/p95/p99 and the parity gates.
 
 Depth needs the BRender convention, not the usual OpenGL one. BRender's perspective maps the near
 plane to `z/w = +1` and the far plane to `-1`. The world shader therefore writes
 `(clip.w - clip.z) * 0.5` and the pipeline compares depth with `LESS_OR_EQUAL`; using
 `(clip.z + clip.w) * 0.5` hides the player car behind the track. Actor children are traversed even
 when a parent's render style is `BR_RSTYLE_NONE`, because the car uses a non-rendering master actor
-above its model actors.
+above its model actors. `docs/images/legacy-race-reference.png` is the legacy vkrend capture from
+the same autostart pose.
 
 ## N1 plan
 

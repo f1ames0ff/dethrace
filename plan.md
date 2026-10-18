@@ -124,9 +124,14 @@ bottleneck.
 
 The world and overlay passes, depth, textures, sampler/descriptor arrays and one frame in flight
 exist. BRender's reversed depth convention is mapped explicitly; without it the track occludes the
-car. The first race scene submits about 3408 draws, 38822 vertices and 66261 indices because the
+car. The first race scene submits about 3512 draws, 39917 vertices and 70020 indices because the
 bridge emits one draw per material run with no batching. Shadow, mirror, cockpit, horizon/sky and
 effect passes are not implemented.
+
+Early performance: Release, 640x480, IMMEDIATE, `--fps=0`, one 60-second stationary autostart
+scene with `RVK_FPS_LOG=1`: 1016-1052 presented frames/s, about 1013 frames/s over 59 samples,
+with 3512 draws. This exceeds 200 FPS for this scene, but is not the formal N4 gate; moving-race
+parity and 5 x 60 s percentile runs remain.
 
 Exit: 640x480 scene at target throughput in the authorized optimized build; validation clean;
 p50/p95/p99 recorded; no per-draw descriptor writes; draw count measured; the measured reason for
@@ -145,10 +150,13 @@ smoke, sparks, splashes and summary parity remain.
 Exit: race playable through the new path; forward/mirror/cockpit/map/summary parity; legacy
 software/OpenGL still work.
 
-### N4 - parity and performance
+### N4 - parity and performance (preliminary gate passed on the start scene)
 Full visual parity set (forward, mirror, cockpit, map, summary, pratcam, fades, dim, gauges,
 frontend, damaged/repair), 10-minute race, validation, 200 FPS in the authorized optimized build.
 Exit: mean <= 5.0 ms, p50/p95/p99 reported; no 4101/device loss/camera assert; one instance.
+
+The Release start scene is already around 1013 presented frames/s with 3512 draws; the formal
+five-run moving-race measurement and parity set are still required.
 
 ### N5 - remove the legacy render path
 Switch the default to the new renderer; keep software/OpenGL fallback and the legacy code only as
@@ -165,15 +173,16 @@ an optional comparison mode. Update docs.
 
 ## Immediate next steps
 
-1. Fix camera/car orientation and HUD/world composition on the first race frame, then capture a
-   software-reference comparison for the same pose.
+1. Add the horizon/sky pass and compare the new forward frame against
+   `docs/images/legacy-race-reference.png` at the same autostart pose.
 2. Batch the runtime bridge by material/pipeline and move static track geometry out of the
-   per-frame actor walk; the current 3408 draws are a correctness milestone, not a performance
+   per-frame actor walk; the current 3512 draws are a correctness milestone, not a performance
    design.
 3. Build the N1 neutral asset format, offline importer and standalone viewer around one track and
    one car.
 4. Port the forward HUD/map to the new 2D pass; keep the CPU overlay only until parity.
-5. Do not claim 200 FPS before the N4 measurement.
+5. Run the formal N4 gate (five 60-second moving-race runs, p50/p95/p99, parity) before claiming
+   the final 200 FPS acceptance.
 
 ## Risks
 

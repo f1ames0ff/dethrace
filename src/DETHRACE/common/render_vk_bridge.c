@@ -8,6 +8,7 @@
 #include "graphics.h"
 #include "harness/hooks.h"
 #include "harness/trace.h"
+#include "pd/sys.h"
 #include "v1db_p.h"
 #include "formats.h"
 
@@ -992,6 +993,29 @@ void GameRender_EndScene(void) {
     }
 }
 
+static void GameRender_LogFps(void) {
+    static int last_time;
+    static uint32_t frames;
+    int now;
+
+    if (getenv("RVK_FPS_LOG") == NULL) {
+        return;
+    }
+    now = PDGetTotalTime();
+    frames++;
+    if (last_time == 0) {
+        last_time = now;
+        return;
+    }
+    if (now - last_time >= 1000) {
+        fprintf(stderr, "render_vk fps=%.1f game_fps=%d frames=%u draws=%u verts=%u indices=%u\n",
+            (double)gFrame_rate / 10.0, gFrame_rate, frames, gRenderVk_draw_count,
+            gRenderVk_vertex_count, gRenderVk_index_count);
+        frames = 0;
+        last_time = now;
+    }
+}
+
 void GameRender_Swap(br_pixelmap *back) {
     static const float clear_color[4] = {0.35f, 0.55f, 0.85f, 1.0f};
     RvkResult result;
@@ -1067,6 +1091,7 @@ void GameRender_Swap(br_pixelmap *back) {
         }
     }
 
+    GameRender_LogFps();
     gRenderVk_scene_ready = 0;
     gRenderVk_vertex_count = 0;
     gRenderVk_index_count = 0;
