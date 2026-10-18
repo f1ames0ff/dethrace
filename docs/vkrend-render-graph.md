@@ -1,5 +1,10 @@
 # vkrend render graph
 
+**Historical evidence.** This document describes the legacy vkrend driver. It remains useful for
+its failure catalogue and D0 measurements, but it is not the architecture of the new renderer.
+The clean renderer is documented in `docs/render-vk-architecture.md`; see `plan.md` for the
+current phase plan.
+
 Current end-to-end picture of how a frame reaches the screen with the `vkrend` BRender driver,
 where the CPU and GPU time goes, which parts are known to be wrong or fragile, and what the
 render graph should become. Snapshot: engine `53d27fd`, dethrace `e80493b`, 2026-10-18; symbol

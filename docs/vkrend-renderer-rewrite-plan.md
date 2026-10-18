@@ -1,9 +1,14 @@
 # Legacy renderer rewrite plan
 
-Scope: replace the **render path** used by the game with a modern retained renderer while keeping
-BRender as the asset/scene loader and the software/OpenGL fallbacks. The Vulkan backend is prepared
-first (`docs/vkrend-vulkan-layer-plan.md`); this document describes how the legacy renderer is
-migrated onto it.
+**Historical document.** This plan migrates the legacy renderer onto the BRender DDI/vkrend layer.
+It is superseded by the clean-room `src/render_vk/` renderer described in
+`docs/render-vk-architecture.md` and `plan.md`. The legacy renderer is now only a behavioral
+reference for what is drawn and in what order, and the software/OpenGL fallback.
+
+Scope of the historical work: replace the **render path** used by the game with a modern retained
+renderer while keeping BRender as the asset/scene loader and the software/OpenGL fallbacks. The
+Vulkan backend is prepared first (`docs/vkrend-vulkan-layer-plan.md`); this document describes how
+the legacy renderer is migrated onto it.
 
 ## What "legacy renderer" means here
 

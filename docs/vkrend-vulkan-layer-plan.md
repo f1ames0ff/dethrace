@@ -1,9 +1,14 @@
 # vkrend Vulkan layer plan
 
-Goal: finish the Vulkan layer as a modern, self-contained renderer backend before the legacy renderer
-is rewritten. The BRender DDI stays the producer API for compatibility, but the vkrend driver becomes
-a deferred, GPU-driven-friendly renderer with an explicit frame graph. The legacy renderer rewrite
-plan is in `docs/vkrend-renderer-rewrite-plan.md`.
+**Historical document.** This describes the legacy BRender/DDI vkrend layer, which is now frozen
+as a reference and fallback. The new renderer is the clean C11 module in `src/render_vk/`; its
+architecture is in `docs/render-vk-architecture.md` and its execution plan is in `plan.md`. Do not
+use this document as the basis for new renderer code.
+
+Goal of the historical work: finish the Vulkan layer as a modern, self-contained renderer backend
+before the legacy renderer is rewritten. The BRender DDI stays the producer API for compatibility,
+but the vkrend driver becomes a deferred, GPU-driven-friendly renderer with an explicit frame graph.
+The legacy renderer rewrite plan is in `docs/vkrend-renderer-rewrite-plan.md`.
 
 ## Review corrections (2026-10-18)
 

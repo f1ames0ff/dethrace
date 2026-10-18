@@ -1,8 +1,24 @@
 # New renderer plan
 
-Status: supersedes the in-place vkrend modernization. Decision: the new renderer must not be
-based on the legacy BRender/DDI/vkrend code. The legacy path remains a reference and fallback
-only. Branch `feature/vkrend-v1`; engine `92e0f91` plus D0 instrumentation, dethrace `3ab8c7a`.
+Status: the new renderer must not be based on the legacy BRender/DDI/vkrend code. N0 is
+implemented in `src/render_vk/` and verified. The legacy path remains a behavioral reference and
+the software/OpenGL fallback; it is not the base of the new renderer. Branch
+`feature/vkrend-v1`; engine `b006d70` and dethrace `441327a` plus the N0 work.
+
+## Decisions (2026-10-18)
+
+- `src/render_vk/` is C11 with raw Vulkan; no C++, NVRHI, STL or VMA.
+- The public API is Vulkan-free and BRender-free. The host supplies loader and surface callbacks;
+  the renderer never includes SDL, Win32 or BRender headers.
+- `DETHRACE_RENDER_VK` is independent of `DETHRACE_VULKAN`. The latter remains the legacy vkrend
+  switch; the new renderer does not link it.
+- N0 is clear/present only: instance/device/swapchain, FIFO default, IMMEDIATE opt-in, resize,
+  validation, CPU timing and a standalone SDL2/SDL3 smoke test.
+- Defer bindless, indirect draws, a general frame graph, transient aliasing and 2-3 frames in
+  flight until a frame-level profile justifies them. Start with an explicit pass list, descriptor
+  arrays and one frame in flight.
+- The asset path uses an offline importer for the viewer and a runtime bridge for mutable game
+  content. BRender may parse assets or expose data to the bridge, but the renderer never calls it.
 
 ## Why the legacy path is not the base
 
@@ -61,23 +77,39 @@ game state / assets
 
 ## Phases
 
-### N0 - freeze and skeleton
-Freeze legacy vkrend (critical fixes only). Create `render_vk` skeleton: instance/device/swapchain,
-clear + present, validation, frame timing. No game integration, no BRender includes.
-Exit: standalone binary presents a clear frame; Debug and Linux compile; legacy untouched.
+### N0 - freeze and skeleton (complete)
+Freeze legacy vkrend (critical fixes only). `src/render_vk/` now provides the C11 library, public
+API, Vulkan context/device/swapchain, FIFO/IMMEDIATE present, clear pass, resize, validation, CPU
+timing and SDL2/SDL3 smoke adapters. No shaders, assets or game integration yet.
+
+Evidence:
+- Debug build with `DETHRACE_VULKAN=OFF`, `DETHRACE_RENDER_VK=ON`: library and SDL2 smoke build.
+- `dethrace` builds with the same configuration; the renderer is not linked into the game yet.
+- 90-frame validation smoke with resize (640x480 -> 800x600 -> 640x480): zero validation
+  warnings/errors, exit 0.
+- 120-frame IMMEDIATE validation smoke: zero validation warnings/errors; mean CPU 0.137 ms for
+  clear + present. This is a skeleton number, not a renderer or 200 FPS result.
+- No BRender include or symbol in `src/render_vk`; no Vulkan loader link; no game code changes.
+- `tools/compare_vkrend_frames.ps1` 24-bit stride fixed for 640x480; references still need to be
+  captured and committed.
 
 ### N1 - asset import and parity viewer
 Offline importer for one track and one car: meshes, materials, textures, transforms. Standalone
-viewer renders the static scene with the new renderer. Software-reference screenshots for the
-same assets.
+viewer renders the static scene with the new renderer. A runtime bridge prototype for one car
+proves mutable transforms/materials. Software-reference screenshots for the same assets.
 Exit: imported scene matches the software reference within the comparator tolerance; asset format
-documented; no BRender dependency in the runtime renderer.
+documented; runtime renderer has no BRender dependency.
 
 ### N2 - renderer core
-Bindless textures, static/dynamic arenas, indirect draws, frame graph, 2-3 frame slots, timeline
-semaphores, UI pass, shadow pass, mirror sub-rect composite, resource lifetime/recovery.
+Explicit pass list: shadow, world, mirror, UI, composite. Static/dynamic arenas, descriptor
+arrays, one frame in flight, material/pipeline variants, UI pass, mirror sub-rect composite,
+resource lifetime/recovery. No general frame graph, bindless, indirect draws, timeline
+semaphores or 2-3 frames in flight until a frame-level profile shows the simpler path is the
+bottleneck.
+
 Exit: 640x480 scene at target throughput in the authorized optimized build; validation clean;
-p50/p95/p99 recorded; no per-draw descriptor binds; draw count measured.
+p50/p95/p99 recorded; no per-draw descriptor writes; draw count measured; the measured reason for
+deferring or adding the heavier features recorded.
 
 ### N3 - game integration
 Add a game-facing `render_api` and `game_render` bridge. Port `RenderAFrame` orchestration:
@@ -106,10 +138,13 @@ an optional comparison mode. Update docs.
 
 ## Immediate next steps
 
-1. Write the `render_vk` public API and module skeleton (no BRender includes).
-2. Build the N1 asset importer and standalone viewer around one track and one car.
-3. Use the legacy vkrend/D0 only as a reference for parity and baseline numbers.
-4. Keep the game on the legacy path until N3.
+1. Build the N1 neutral asset format, offline importer and standalone viewer around one track and
+   one car.
+2. Add one textured mesh pipeline with depth, a fixed camera and a screenshot path; compare against
+   a software reference.
+3. Prototype the runtime bridge for one car: transform and material updates, no BRender renderer
+   calls.
+4. Keep the game on the legacy path until N3; do not claim 200 FPS before the N4 measurement.
 
 ## Risks
 

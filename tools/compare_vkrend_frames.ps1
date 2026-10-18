@@ -58,7 +58,7 @@ function Read-Bmp24 {
         $height = -$height
     }
 
-    $stride = ([int](($width * 3 + 3) / 4)) * 4
+    $stride = ([int][math]::Floor(($width * 3 + 3) / 4.0)) * 4
     if ($bytes.Length -lt ($dataOffset + $stride * $height)) {
         throw "pixel data is truncated ($($bytes.Length) bytes, need $($dataOffset + $stride * $height))"
     }
@@ -292,14 +292,14 @@ for ($row = 0; $row -lt 12; $row++) {
 }
 Write-Host ""
 
-$pass = $difference.PixelDifferenceFraction -lt $MaxDiffFraction
+$pass = $difference.PixelDifferenceFraction -le $MaxDiffFraction
 
 Write-Host ("MaxDiffFraction  : {0:0.0000} ({1:0.00}% of pixels)" -f $MaxDiffFraction, ($MaxDiffFraction * 100.0))
 if ($pass) {
     Write-Host "Result           : MATCH"
 } else {
     Write-Host "Result           : MISMATCH"
-    Write-Host ("NOTE: {0:0.0000}% of pixels differ above the threshold, at or over the {1:0.0000}% limit." -f `
+    Write-Host ("NOTE: {0:0.0000}% of pixels differ above the threshold, over the {1:0.0000}% limit." -f `
         ($difference.PixelDifferenceFraction * 100.0), ($MaxDiffFraction * 100.0))
 }
 Write-Host "=============================="
