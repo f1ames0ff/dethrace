@@ -2,7 +2,7 @@
 
 Status: the new renderer must not be based on the legacy BRender/DDI/vkrend code. N0 is
 implemented in `src/render_vk/` and verified. The first in-game race frame is rendered by the new
-renderer through the runtime bridge: the world pass contains the track and actors, and the
+renderer through the runtime bridge: the world pass contains the track and the player car, and the
 existing HUD is presented as a transitional CPU overlay. The legacy path remains a behavioral
 reference and the software/OpenGL fallback; it is not the base of the new renderer. Branch
 `feature/vkrend-v1`; engine `b006d70` and dethrace `441327a` plus the N0 and first-light work.
@@ -108,9 +108,9 @@ proves mutable transforms/materials. Software-reference screenshots for the same
 
 The runtime bridge was brought forward for first light. It walks the live BRender actor tree,
 reads source model arrays for cars and prepared `v11group` data for track models whose source
-arrays were released, and submits one draw per material run. The first race frame is captured in
-`docs/images/render-vk-first-race.png`. The offline importer and standalone viewer are still to
-do.
+arrays were released, and submits one draw per material run. The first race frame, with the car
+visible and upright, is captured in `docs/images/render-vk-first-race.png`. The offline importer
+and standalone viewer are still to do; the horizon/sky pass is also missing.
 
 Exit: imported scene matches the software reference within the comparator tolerance; asset format
 documented; runtime renderer has no BRender dependency.
@@ -123,9 +123,10 @@ semaphores or 2-3 frames in flight until a frame-level profile shows the simpler
 bottleneck.
 
 The world and overlay passes, depth, textures, sampler/descriptor arrays and one frame in flight
-exist. The first race scene submits about 3408 draws, 38822 vertices and 66261 indices because
-the bridge emits one draw per material run with no batching. Shadow, mirror, cockpit and effect
-passes are not implemented.
+exist. BRender's reversed depth convention is mapped explicitly; without it the track occludes the
+car. The first race scene submits about 3408 draws, 38822 vertices and 66261 indices because the
+bridge emits one draw per material run with no batching. Shadow, mirror, cockpit, horizon/sky and
+effect passes are not implemented.
 
 Exit: 640x480 scene at target throughput in the authorized optimized build; validation clean;
 p50/p95/p99 recorded; no per-draw descriptor writes; draw count measured; the measured reason for
@@ -136,9 +137,10 @@ Add a game-facing `render_api` and `game_render` bridge. Port `RenderAFrame` orc
 camera, cars, track, effects, HUD, map, mirror, cockpit, shadows. Keep the legacy path behind a
 selector for A/B. No BRender renderer/DDI calls in the new path.
 
-The forward world, camera and HUD overlay now run in a race. `RVK_AUTOSTART=1` is a verification
-hook that skips the menus and grid screen; it is not a shipping default. Map, mirror, cockpit,
-shadows, smoke, sparks, splashes and summary parity remain.
+The forward world, camera, player car and HUD overlay now run in a race. `RVK_AUTOSTART=1` is a
+verification hook that skips the menus and grid screen; it works in both renderer builds for
+same-pose comparisons and is not a shipping default. Map, mirror, cockpit, horizon/sky, shadows,
+smoke, sparks, splashes and summary parity remain.
 
 Exit: race playable through the new path; forward/mirror/cockpit/map/summary parity; legacy
 software/OpenGL still work.

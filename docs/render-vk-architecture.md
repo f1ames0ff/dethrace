@@ -134,9 +134,11 @@ smoke executables need an SDL platform. SDL3 support requires SDL 3.2.0 or newer
 ### First in-game race frame
 
 The new path is selected with `--render-vk`. A test hook, `RVK_AUTOSTART=1`, starts a one-player
-race without menu input; it is a verification aid, not a shipping default. The log shows
+race without menu input; it works in both renderer builds so the same pose can be captured with
+the legacy path for comparison. It is a verification aid, not a shipping default. The log shows
 `VKREND: race loop started`, and the new renderer builds and submits a world pass every frame. The
-first captured race frame is `docs/images/render-vk-first-race.png`.
+first captured race frame is `docs/images/render-vk-first-race.png`; it shows the track and the
+player car upright, with the existing HUD overlay.
 
 The frame uses:
 
@@ -150,7 +152,15 @@ The frame uses:
 The first measured scene has about 3408 draws, 38822 vertices and 66261 indices. This is a
 correctness milestone, not a performance result: there is no batching, indirect submission,
 shadows, mirror, cockpit target, smoke/spark effect or full UI pass yet. The CPU bridge walks the
-live BRender scene every frame. The 200 FPS target remains unmeasured.
+live BRender scene every frame. The horizon/sky pass is also missing, so the track backdrop does
+not yet match the legacy capture. The 200 FPS target remains unmeasured.
+
+Depth needs the BRender convention, not the usual OpenGL one. BRender's perspective maps the near
+plane to `z/w = +1` and the far plane to `-1`. The world shader therefore writes
+`(clip.w - clip.z) * 0.5` and the pipeline compares depth with `LESS_OR_EQUAL`; using
+`(clip.z + clip.w) * 0.5` hides the player car behind the track. Actor children are traversed even
+when a parent's render style is `BR_RSTYLE_NONE`, because the car uses a non-rendering master actor
+above its model actors.
 
 ## N1 plan
 

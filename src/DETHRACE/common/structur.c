@@ -535,7 +535,7 @@ void DoGame(void) {
             LoadRaceInfo(gProgram_state.current_race_index, &gCurrent_race);
             FillInRaceInfo(&gCurrent_race);
             DisposeRaceInfo(&gCurrent_race);
-        } else if (harness_game_config.render_vk_mode && getenv("RVK_AUTOSTART") != NULL) {
+        } else if (getenv("RVK_AUTOSTART") != NULL) {
             LoadRaceInfo(gProgram_state.current_race_index, &gCurrent_race);
             FillInRaceInfo(&gCurrent_race);
             gProgram_state.view_type = eVT_Scene;
@@ -600,7 +600,7 @@ void DoGame(void) {
                             && gProgram_state.prog_status == eProg_game_ongoing
                             && !gAbandon_game);
                     } else {
-                        if (harness_game_config.render_vk_mode && getenv("RVK_AUTOSTART") != NULL) {
+                        if (getenv("RVK_AUTOSTART") != NULL) {
                             options_result = eSO_continue;
                         } else {
                             do {
@@ -722,15 +722,12 @@ void InitialiseProgramState(void) {
 void DoProgram(void) {
     InitialiseProgramState();
     do {
-#ifdef DETHRACE_RENDER_VK
-        if (harness_game_config.render_vk_mode && getenv("RVK_AUTOSTART") != NULL
-            && gProgram_state.prog_status == eProg_intro) {
+        if (getenv("RVK_AUTOSTART") != NULL && gProgram_state.prog_status == eProg_intro) {
             if (DoOnePlayerStart()) {
                 gProgram_state.prog_status = eProg_game_starting;
                 continue;
             }
         }
-#endif
         switch (gProgram_state.prog_status) {
         case eProg_intro:
             DisposeGameIfNecessary();

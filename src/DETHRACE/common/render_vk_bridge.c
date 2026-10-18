@@ -653,15 +653,13 @@ static void GameRender_AddActor(br_actor *actor, br_actor *universe, br_model *m
     if (actor->render_style != BR_RSTYLE_DEFAULT) {
         style = actor->render_style;
     }
-    if (style == BR_RSTYLE_NONE) {
-        return;
-    }
-    if (actor->type == BR_ACTOR_MODEL && model != NULL
+    if (style != BR_RSTYLE_NONE && actor->type == BR_ACTOR_MODEL && model != NULL
         && ((model->vertices != NULL && model->faces != NULL && model->nvertices != 0 && model->nfaces != 0) || model->prepared != NULL)) {
         GameRender_AddModel(actor, universe, model, material);
     }
     for (child = actor->children; child != NULL; child = child->next) {
-        GameRender_AddActor(child, universe, model, material, style);
+        GameRender_AddActor(child, universe, model, material,
+            style == BR_RSTYLE_NONE ? BR_RSTYLE_DEFAULT : style);
     }
 }
 
@@ -933,17 +931,41 @@ void GameRender_Begin2D(br_pixelmap *back) {
 }
 
 void GameRender_BeginScene(br_actor *camera) {
+    br_camera *camera_data;
+    br_matrix34 camera_to_world;
+    br_matrix4 projection;
     br_matrix4 view_proj;
+    br_pixelmap *screen;
+    br_scalar origin_x = BR_SCALAR(0);
+    br_scalar origin_y = BR_SCALAR(0);
+    br_scalar aspect;
     int row;
     int column;
 
     gRenderVk_camera = camera;
     GameRender_ResetScene();
     memset(gRenderVk_view_proj, 0, sizeof(gRenderVk_view_proj));
-    if (!GameRender_IsActive() || camera == NULL || gUniverse_actor == NULL) {
+    if (!GameRender_IsActive() || camera == NULL || gUniverse_actor == NULL || camera->type_data == NULL) {
         return;
     }
-    BrActorToScreenMatrix4(&view_proj, gUniverse_actor, camera);
+    camera_data = (br_camera *)camera->type_data;
+    screen = gRender_screen;
+    if (screen != NULL && screen->width != 0 && screen->height != 0) {
+        origin_x = (br_scalar)(screen->origin_x - screen->width / 2) / (br_scalar)(screen->width / 2);
+        origin_y = -(br_scalar)(screen->origin_y - screen->height / 2) / (br_scalar)(screen->height / 2);
+        aspect = (br_scalar)screen->width / (br_scalar)screen->height;
+    } else {
+        aspect = camera_data->aspect;
+    }
+    if (aspect <= BR_SCALAR(0)) {
+        aspect = BR_SCALAR(1);
+    }
+    BrMatrix4Perspective(&projection, camera_data->field_of_view, aspect,
+        -camera_data->hither_z, -camera_data->yon_z);
+    projection.m[2][0] = -origin_x;
+    projection.m[2][1] = -origin_y;
+    BrActorToActorMatrix34(&camera_to_world, gUniverse_actor, camera);
+    BrMatrix4Mul34(&view_proj, &camera_to_world, &projection);
     for (row = 0; row < 4; row++) {
         for (column = 0; column < 4; column++) {
             gRenderVk_view_proj[column * 4 + row] = (float)view_proj.m[column][row];

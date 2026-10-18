@@ -18,7 +18,7 @@ layout(location = 1) out vec2 v_uv;
 
 void main() {
     vec4 clip = world.view_proj * push.model * vec4(position, 1.0);
-    clip.z = (clip.z + clip.w) * 0.5;
+    clip.z = (clip.w - clip.z) * 0.5;
     clip.y = -clip.y;
     gl_Position = clip;
     v_normal = mat3(push.model) * normal;

@@ -405,8 +405,7 @@ int DoOnePlayerStart(void) {
     int merrily_looping;
     tProgram_state saved_state;
 
-#ifdef DETHRACE_RENDER_VK
-    if (harness_game_config.render_vk_mode && getenv("RVK_AUTOSTART") != NULL) {
+    if (getenv("RVK_AUTOSTART") != NULL) {
         gProgram_state.frank_or_anniness = 0;
         gProgram_state.skill_level = 1;
         StartLoadingScreen();
@@ -425,7 +424,6 @@ int DoOnePlayerStart(void) {
         InitGame(0);
         return 1;
     }
-#endif
 
     if (OriginalCarmaCDinDrive()) {
         memcpy(&saved_state, &gProgram_state, sizeof(tProgram_state));
