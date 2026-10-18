@@ -106,9 +106,6 @@ RvkResult rvk_draw_world(RvkDevice *device, const float view_proj[16],
             device->vk.CmdBindPipeline(device->command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
             bound_pipeline = pipeline;
         }
-        if ((draw->flags & RVK_DRAW_FLAG_SKY) != 0) {
-            draw_scissor.extent.height = (device->extent.height * 5u) / 12u;
-        }
         device->vk.CmdSetScissor(device->command_buffer, 0, 1, &draw_scissor);
         memcpy(push.model, draw->model, sizeof(push.model));
         memcpy(push.tint, draw->tint, sizeof(push.tint));

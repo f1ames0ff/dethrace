@@ -1013,13 +1013,12 @@ void GameRender_AddUniverse(br_actor *universe) {
     if (!GameRender_IsActive() || universe == NULL || universe == gDont_render_actor) {
         return;
     }
-    GameRender_AddActor(universe, universe, NULL, NULL, BR_RSTYLE_DEFAULT);
     if (GameRender_PrepareSky(gRenderVk_camera)) {
-        gRenderVk_draw_flags = RVK_DRAW_FLAG_NO_DEPTH | RVK_DRAW_FLAG_COLOUR_KEY | RVK_DRAW_FLAG_SKY;
-        GameRender_AddActor(gForward_sky_actor, universe, NULL, gHorizon_material, BR_RSTYLE_FACES);
         gRenderVk_draw_flags = 0;
+        GameRender_AddActor(gForward_sky_actor, universe, NULL, gHorizon_material, BR_RSTYLE_FACES);
         gForward_sky_actor->render_style = BR_RSTYLE_NONE;
     }
+    GameRender_AddActor(universe, universe, NULL, NULL, BR_RSTYLE_DEFAULT);
     if (gRenderVk_draw_count > 0) {
         gRenderVk_scene_ready = 1;
     }

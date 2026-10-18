@@ -129,9 +129,9 @@ parts (such as `FIN.DAT`) out of the frame. The world pipeline blends by source 
 discards near-black final texels unconditionally as a conservative colour-key fallback; an exact
 per-material colour-key path remains. The first race
 scene submits about 3408 draws, 38638 vertices and 65949 indices because the bridge emits one draw
-per material run with no batching. An initial horizon pass is implemented with a no-depth sky
-pipeline and a fixed upper-screen scissor; dynamic horizon clipping, shadow, mirror, cockpit and
-effect passes are not implemented.
+per material run with no batching. An initial horizon pass is submitted before the world and is
+depth-tested behind the car and track; a near trackside wall hides the city in the start view.
+Dynamic horizon clipping, shadow, mirror, cockpit and effect passes are not implemented.
 
 Early performance: Release, 640x480, IMMEDIATE, `--fps=0`, one 60-second stationary autostart
 scene with `RVK_FPS_LOG=1`: 1016-1067 presented frames/s in steady samples, about 1020 frames/s
@@ -148,11 +148,11 @@ camera, cars, track, effects, HUD, map, mirror, cockpit, shadows. Keep the legac
 selector for A/B. No BRender renderer/DDI calls in the new path.
 
 The forward world, camera, player car and HUD overlay now run in a race. Hidden car subtrees are
-pruned correctly, removing the stray bonnet-fin geometry. The city horizon is back as an initial
-screen-scissored overlay. `RVK_AUTOSTART=1` is a verification hook that skips the menus and grid
-screen; it works in both renderer builds for same-pose comparisons and is not a shipping default.
-Map, mirror, cockpit, dynamic horizon clipping, shadows, smoke, sparks, splashes and summary
-parity remain.
+pruned correctly, removing the stray bonnet-fin geometry. The horizon is now drawn before the
+world with normal depth, so it stays behind the car and track. `RVK_AUTOSTART=1` is a verification
+hook that skips the menus and grid screen; it works in both renderer builds for same-pose
+comparisons and is not a shipping default. Map, mirror, cockpit, dynamic horizon clipping,
+shadows, smoke, sparks, splashes and summary parity remain.
 
 Exit: race playable through the new path; forward/mirror/cockpit/map/summary parity; legacy
 software/OpenGL still work.

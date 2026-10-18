@@ -138,7 +138,8 @@ race without menu input; it works in both renderer builds so the same pose can b
 the legacy path for comparison. It is a verification aid, not a shipping default. The log shows
 `VKREND: race loop started`, and the new renderer builds and submits a world pass every frame. The
 first captured race frame is `docs/images/render-vk-first-race.png`; it shows the track, the
-player car upright, the city skyline and the existing HUD overlay.
+player car upright and the existing HUD overlay. The horizon is submitted before the world and is
+occluded by nearer track geometry; a near trackside wall hides the city in this start view.
 
 The frame uses:
 
@@ -152,14 +153,14 @@ The frame uses:
   fragment shader currently discards near-black final texels unconditionally as a conservative
   colour-key fallback. This removes black sprite rectangles such as the car's spike sprite;
   material flags remain in the draw record for a later, exact colour-key pass;
-- an initial horizon pass. `HORIZON.MAT` is added after the world with depth testing disabled and
-  a top-screen scissor, so the city panorama covers the background without covering the car or
-  track. Dynamic horizon clipping is still to do.
+- an initial horizon pass. `HORIZON.MAT` is submitted before the world with normal depth testing,
+  so it stays behind the car and track instead of covering them. Dynamic horizon clipping and
+  removing the near trackside wall are still to do.
 
 The first measured scene has about 3408 draws, 38638 vertices and 65949 indices. The CPU bridge
 walks the live BRender scene every frame with no batching, indirect submission, shadows, mirror,
-cockpit target, smoke/spark effect or full UI pass. The initial horizon pass covers the backdrop,
-but its scissor is fixed to the upper screen instead of following the real horizon.
+cockpit target, smoke/spark effect or full UI pass. The horizon is behind the near geometry, but
+the start view's trackside wall still hides most of the city.
 
 A preliminary performance run used the Release build, 640x480, IMMEDIATE present, `--fps=0` and
 `RVK_AUTOSTART=1` with `RVK_FPS_LOG=1`. One 60-second stationary start scene produced 1016-1067
