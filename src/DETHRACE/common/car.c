@@ -7434,12 +7434,28 @@ void CheckCameraHither(void) {
     br_camera* cam;
     // GLOBAL: CARM95 0x514ea4
     static int old_hither;
+#ifdef DETHRACE_FIX_BUGS
+    static br_scalar old_hither_value;
+#endif
 
     cam = (br_camera*)gCamera->type_data;
+#ifdef DETHRACE_FIX_BUGS
+    (void)old_hither;
+    if (!isfinite(cam->hither_z) || cam->hither_z <= 0.0f || cam->hither_z >= cam->yon_z) {
+        cam->hither_z = (isfinite(old_hither_value) && old_hither_value > 0.0f
+                            && old_hither_value < cam->yon_z)
+            ? old_hither_value
+            : ((isfinite(gCamera_hither) && gCamera_hither > 0.0f && gCamera_hither < cam->yon_z)
+                      ? gCamera_hither
+                      : 0.02f);
+    }
+    old_hither_value = cam->hither_z;
+#else
     if (TestForNan(&cam->hither_z)) {
         cam->hither_z = (float)old_hither;
     }
     old_hither = (int)cam->hither_z;
+#endif
 }
 
 // IDA: void __usercall SetCarSuspGiveAndHeight(tCar_spec *pCar@<EAX>, br_scalar pFront_give_factor, br_scalar pRear_give_factor, br_scalar pDamping_factor, br_scalar pExtra_front_height, br_scalar pExtra_rear_height)

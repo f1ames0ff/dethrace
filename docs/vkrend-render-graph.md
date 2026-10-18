@@ -93,7 +93,10 @@ Draw recording (`GpuVkRenderStored` `gpu.c:2316`, `GpuVkRenderV1Model` `gpu.c:23
   are destroyed at the target's next first-scene flush (`GpuVkRetireFlush`, `gpu.c:1094`);
 - per material group: resolve state (`GpuVkMaterialResolve` `gpu.c:1422`), look up/reuse a texture
   descriptor set (`GpuVkMaterialDescriptor` `gpu.c:1479`), write 192 bytes of UBO
-  (`GpuVkWriteUbo` `gpu.c:1382`), bind with a dynamic offset and issue `vkCmdDrawIndexed`;
+  (`GpuVkWriteUbo` `gpu.c:1382`), bind with a dynamic offset and issue `vkCmdDrawIndexed`. The
+  texture cache key is `(stored, view, generation)`; `generation` is now a process-wide monotonic
+  texture serial, so a rebuilt or freed texture cannot alias a stale descriptor set (the former
+  per-stored counter caused a false hit and the TDR);
 - textures are built lazily: `BufferStoredVkGetTexture` (`sbuffer.c:797`) converts INDEX_8/RGB565/
   RGB888/RGBA to RGBA8 on the CPU, then uploads with its own command pool, submit and
   `vkWaitForFences` (`BufferTextureUpload` `sbuffer.c:319`).
@@ -237,16 +240,17 @@ less invasive default.
   them, reset `gpu_disabled`, GPU and texture function tables, log flags and deferred lists. The
   recovery budget is 8 attempts, intended as one attempt per `present_serial`; `VIDEOVkCreate`
   memsets the struct and resets that serial, while `recovery_attempted` is preserved on a
-  successful create. After exhaustion a 600-present cooldown allows a new batch. A failed
-  `VIDEOVkCreate` resets the attempt budget; Vulkan-call failures go through `video_fail` ->
+  successful create. The retry gate is now wall-clock based (`recovery_retry_time`, 10 s). A failed
+  `VIDEOVkCreate` is non-fatal during recovery (`video_recovering`), logs, preserves the attempt
+  budget, and re-arms the retry; other Vulkan-call failures go through `video_fail` ->
   `BrFailure` (which can abort), while some pre-call validation failures return `BRE_FAIL` without
   it.
-- **Freeze:** after budget exhaustion the device is not destroyed, `video_present_frame` waits the
-  lost device's fence, recovery returns `BRE_FAIL`, and the function returns `BRE_OK` without
-  acquiring or presenting. The scene path can also call `GpuVkHandleDeviceLost` ->
-  `GpuVkDisable` when the present-fence wait in `GpuVkBeginScene` fails. The window freezes while
-  the process lives; the 600-present cooldown retries the same batch. This is a silent
-  degradation, not an explicit failure.
+- **Terminal freeze:** after budget exhaustion `gpu_failed` is set and the present path enters an
+  explicit 1 s sleep loop, retrying recovery every wall-clock 10 s. It never waits on the lost
+  device and never returns `BRE_OK` without presenting; the window is explicitly frozen
+  (`VKREND: GPU rendering suspended`) and the process must be closed or recover. This is the last
+  resort, not a silent degradation. The scene path can also call `GpuVkHandleDeviceLost` ->
+  `GpuVkDisable` when the present-fence wait in `GpuVkBeginScene` fails.
 - `VIDEOVkDestroy`/`VIDEOVkCreate` memset the whole video struct; `present_serial`,
   `recovery_serial`, `recovery_cooldown` and `recovery_exhausted` are not preserved across a
   re-init. `recovery_attempted` is preserved on success, but a failed create does not increment
@@ -292,17 +296,28 @@ less invasive default.
   (`UpdateFramePeriod` re-adds a stale `error`; car physics is capped at 5 x 40 ms) is a plausible
   source of the non-finite transform. The only 20:54 crash dump on disk is a `vulkan-1.dll`
   fail-fast (`0xc0000409`), not a ProcessShadow dump; the exact NaN origin remains open. The assert
-  itself is doing its job and must not be weakened.
-- **TDR.** In G/L/M each run produced **one** Windows Display 4101 event about 34-36 seconds after
-  process start; the 7-8 `Vulkan device lost, reinitialising` lines are retry attempts, not repeated
-  OS TDRs. The event is system-wide and does not name the process. Pre-V3a runs also produced 4101
-  events plus a `vulkan-1.dll` fail-fast (BEX64), so V3a is not the origin. M's marker log has no
-  scene-side `vk failure at` line; the only named stage is L's present-fence wait at scene begin.
-  The first faulting call is not logged. Cross-pass descriptor reuse (which requires more than 512
-  distinct views on one target) is a strong code-level candidate; sampling the persistent target in
-  the composite is another. The A-D white/no-draw runs are menu-only and not race controls. A
-  10-minute software race control is in progress; an earlier software run never left the grid
-  screen.
+  itself is doing its job and must not be weakened. The fix is implemented under
+  `DETHRACE_FIX_BUGS`: `CheckCameraHither` stores a float and rejects non-finite/out-of-range
+  values; `ProcessShadow` repairs a bad hither, guards non-finite or out-of-range `pos_z`, and
+  restores the exact saved hither; `UpdateFramePeriod` drops the stale error after a >500 ms stall.
+  The three-minute verification race had no assert.
+- **TDR: root cause found and fixed.** `GpuVkMaterialDescriptor` keyed its descriptor cache by
+  `(br_buffer_stored*, VkImageView, generation)`, where `generation` was a per-stored counter that
+  restarted for every newly allocated texture (`sbuffer.c`). The pratcam texture is re-added and
+  removed every frame; the allocator and the driver can reuse the stored address and the image-view
+  handle, so a new texture could match a stale cache entry whose descriptor set still referenced a
+  destroyed image view. Sampling that view caused the GPU fault/TDR. The fix makes
+  `texture.generation` a process-wide monotonic texture serial (`sbuffer_texture_serial`), so a
+  cache entry can never be selected after its texture is rebuilt or freed. A/B evidence: before the
+  fix, a valid race lost the device about 35 s after process start; after the fix, a nearly full
+  three-minute race (deterministic navigation, screenshots at 30/60/90 s) ran with 0 Display 4101,
+  0 device loss, 0 camera assert, and correct textures. Present-black and per-pass-submit ablations
+  still TDR'd, which rules out the composite pass and cross-pass batching; no-geometry and
+  white-texture-view ablations did not TDR, pointing at texture sampling.
+- The pre-fix logs still show one Display 4101 per run and 7-8 retry attempts; the A-D white/no-draw
+  runs were menu-only and are not race controls. A software-renderer race control (deterministic
+  navigation) ran 60+ s without a 4101, supporting a vkrend-specific fault; the stationary car was
+  eventually wrecked, so it was not a 10-minute control.
 
 ### Performance
 
@@ -447,6 +462,9 @@ Required changes, in dependency order:
 - `VKREND_VALIDATION=1` enables the Khronos validation layer; it is opt-in and writes
   `vkrend_validation.txt`. It currently enables only the core layer, not GPU-assisted or
   synchronization validation.
+- Diagnostic gates (opt-in): `VKREND_PRESENT_BLACK`, `VKREND_SUBMIT_PER_PASS`,
+  `VKREND_NO_GEOMETRY`, `VKREND_WHITE_TEXTURE_SETS`, `VKREND_WHITE_TEXTURE_VIEW`. The last two
+  separate descriptor churn from sampling the real texture image.
 - `vkrend_markers.txt` is a diagnostic log (scene starts capped at 48, compositor activation,
   failures). Failure markers are not bounded, and `GpuVkLogMarker` opens/appends the file per
   message; it is not a profiler.

@@ -442,6 +442,10 @@ void UpdateFramePeriod(tU32* pCamera_period) {
         if (gFrame_period > 500 && new_tick_count - gRace_start > 2000) {
             gFrame_period = gAverage_frame_period / 10;
             gLast_tick_count = new_tick_count;
+#ifdef DETHRACE_FIX_BUGS
+            error = 0;
+            gAverage_frame_period = 100;
+#endif
             if (gNet_mode) {
                 switch (gNet_mode) {
                 case eNet_mode_client:
@@ -567,6 +571,10 @@ tRace_result MainGameLoop(void) {
     int tried_to_allocate_AR;
     int i;
     int bonus;
+
+#ifdef DETHRACE_FIX_BUGS
+    BrLogPrintf("VKREND: race loop started\n");
+#endif
 
     tried_to_allocate_AR = 0;
     gCar_to_view = &gProgram_state.current_car;

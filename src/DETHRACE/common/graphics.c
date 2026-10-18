@@ -1464,6 +1464,9 @@ void ProcessShadow(tCar_spec* pCar, br_actor* pWorld, tTrack_spec* pTrack_spec, 
     br_scalar distance;
     br_scalar camera_hither_fudge;
     br_scalar camera_angle_additional_fudge;
+#ifdef DETHRACE_FIX_BUGS
+    br_scalar saved_hither;
+#endif
     br_scalar ray_length;
     tBounds kev_bounds;
     tFace_ref the_list[100];
@@ -1686,6 +1689,37 @@ void ProcessShadow(tCar_spec* pCar, br_actor* pWorld, tTrack_spec* pTrack_spec, 
 
         camera_ptr = (br_camera*)gCamera->type_data;
         DRMatrix34TApplyP(&pos_cam_space, &pCar->car_master_actor->t.t.euler.t, &gCamera_to_world);
+#ifdef DETHRACE_FIX_BUGS
+        {
+            br_scalar camera_yon = camera_ptr->yon_z;
+
+            saved_hither = camera_ptr->hither_z;
+            if (!isfinite(saved_hither) || saved_hither <= 0.0f
+                || !isfinite(camera_yon) || saved_hither >= camera_yon) {
+                saved_hither = (isfinite(gCamera_hither) && gCamera_hither > 0.0f
+                                   && (!isfinite(camera_yon) || gCamera_hither < camera_yon))
+                    ? gCamera_hither
+                    : 0.02f;
+                camera_ptr->hither_z = saved_hither;
+            }
+            if (!isfinite(camera_yon) || camera_yon <= saved_hither) {
+                camera_yon = (isfinite(gCamera_yon) && gCamera_yon > saved_hither) ? gCamera_yon : 35.0f;
+                camera_ptr->yon_z = camera_yon;
+            }
+            camera_hither_fudge = 0.0f;
+            if (isfinite(pos_cam_space.v[2]) && pos_cam_space.v[2] < 36.0
+                && pos_cam_space.v[2] < camera_yon) {
+                camera_angle_additional_fudge = sqr(camera_yon - saved_hither);
+                camera_hither_fudge = camera_angle_additional_fudge * (pos_cam_space.v[2] * 1.0)
+                    / ((pos_cam_space.v[2] - camera_yon) * camera_yon * 65536.0);
+                if (!isfinite(camera_hither_fudge) || camera_hither_fudge < 0.0002)
+                    camera_hither_fudge = 0.0002;
+                if (saved_hither + camera_hither_fudge >= camera_yon)
+                    camera_hither_fudge = 0.0f;
+                camera_ptr->hither_z = saved_hither + camera_hither_fudge;
+            }
+        }
+#else
         if (pos_cam_space.v[2] >= 36.0 || pos_cam_space.v[2] >= camera_ptr->yon_z) {
             camera_hither_fudge = 0.0;
         } else {
@@ -1696,6 +1730,7 @@ void ProcessShadow(tCar_spec* pCar, br_actor* pWorld, tTrack_spec* pTrack_spec, 
             }
             camera_ptr->hither_z += camera_hither_fudge;
         }
+#endif
         if (f_num) {
 #ifdef DETHRACE_3DFX_PATCH
             DisableLights();
@@ -1726,7 +1761,11 @@ void ProcessShadow(tCar_spec* pCar, br_actor* pWorld, tTrack_spec* pTrack_spec, 
             }
             BrZbSceneRenderEnd();
         }
+#ifdef DETHRACE_FIX_BUGS
+        camera_ptr->hither_z = saved_hither;
+#else
         camera_ptr->hither_z -= camera_hither_fudge;
+#endif
         for (i = 0; i < f_num; i++) {
             if (gFancy_shadow) {
                 material = gShadow_model->faces[i].material;
