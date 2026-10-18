@@ -52,8 +52,9 @@ present (FIFO default, uncapped opt-in)
   Replaces the CPU shadow and magenta key.
 - **Shadow system**: batched projected shadows in the first rewrite stage; a shadow map/cascades is
   an optional later visual upgrade, not a prerequisite for the port.
-- **Job system**: parallel extraction, culling, material resolution and command recording, with
-  per-thread command pools/secondary command buffers.
+- **Execution model**: single-threaded. Extraction, culling, material resolution and command
+  recording run on the main thread. Multithreading is explicitly out of scope: at 640x480 the target
+  is low draw count and low state churn, not parallelism.
 
 ## Migration stages
 
@@ -92,9 +93,12 @@ present (FIFO default, uncapped opt-in)
 - Uploads via transfer queue/staging ring; no per-texture synchronous fence.
 - Acceptance: palette animation correct; texture upload CPU cost near zero per frame.
 
-### B6 - Multithreading
-- Parallel extraction/culling/material resolution; per-thread command recording; deterministic sort.
-- Acceptance: same visuals; CPU scene record reduced; no Vulkan threading violations.
+### B6 - Single-thread efficiency
+- Collapse per-frame material/state churn, sort the proxy list by pipeline/material/texture, merge
+  static groups, and keep culling/extraction in one deterministic pass.
+- No worker threads, job system or secondary command buffers. The CPU budget is won by doing less
+  work, not by spreading it.
+- Acceptance: same visuals; CPU scene record reduced with one thread; no Vulkan threading changes.
 
 ### B7 - Remove the legacy render path from vkrend
 - The vkrend hot path no longer calls `BrZbSceneRenderBegin/End` per model/group; it consumes proxies
@@ -113,7 +117,7 @@ present (FIFO default, uncapped opt-in)
 - B2 depends on A4 (frame graph/main target/composite).
 - B3/B4 can be staged behind flags and A/B tested.
 - B5 depends on A3 (bindless/palette).
-- B6 depends on B1 and the proxy list being immutable during recording.
+- B6 depends on B1/B2 and the proxy list being immutable during recording; it is single-threaded.
 
 ## What stays
 
@@ -137,7 +141,8 @@ present (FIFO default, uncapped opt-in)
 3. **Shadows**: per-car clip planes and projected geometry may limit batching; a shadow map is a
    visual upgrade with its own art/performance cost.
 4. **CPU vs GPU**: at 640x480 the GPU is idle; the rewrite must target CPU submission/extraction, not
-   more GPU features. If traversal remains the limit, B6 is mandatory before 200 FPS.
+   more GPU features. If traversal remains the limit, B6 (single-threaded batching/state reduction) is
+   the required lever; multithreading is not in scope.
 5. **200 FPS**: the rewrite lowers CPU cost, but the final number must be measured. A qualified result
    is required if the authorized build cannot reach 5 ms.
 

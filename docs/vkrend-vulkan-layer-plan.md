@@ -159,8 +159,9 @@ owns the sub-rect layout.
 
 ## Risks
 
-- BRender traversal may still dominate after A2/A3. The A0 profile decides whether the legacy
-  rewrite's multithreaded extraction (B5) must come before A7.
+- BRender traversal may still dominate after A2/A3. The A0 profile decides which single-threaded
+  lever is needed: draw-count reduction, state/material batching, or proxy extraction. Multithreading
+  is explicitly out of scope for this game and this target.
 - Bindless extension availability; the 512-slot array fallback is kept.
 - The 2D HUD/shadow is a large legacy dependency; A6 is a bridge until the UI rewrite.
 - Windows windowed IMMEDIATE may be compositor-limited; render-loop throughput is the primary metric.
