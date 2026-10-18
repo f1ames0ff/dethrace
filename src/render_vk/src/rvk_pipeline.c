@@ -349,9 +349,9 @@ static RvkResult rvk_create_background_pipeline(RvkDevice *device) {
     multisample.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
     memset(&depth_stencil, 0, sizeof(depth_stencil));
     depth_stencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
-    depth_stencil.depthTestEnable = VK_TRUE;
+    depth_stencil.depthTestEnable = VK_FALSE;
     depth_stencil.depthWriteEnable = VK_FALSE;
-    depth_stencil.depthCompareOp = VK_COMPARE_OP_EQUAL;
+    depth_stencil.depthCompareOp = VK_COMPARE_OP_ALWAYS;
     depth_stencil.depthBoundsTestEnable = VK_FALSE;
     depth_stencil.stencilTestEnable = VK_FALSE;
 
