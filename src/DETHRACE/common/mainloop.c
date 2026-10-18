@@ -827,8 +827,12 @@ tRace_result MainGameLoop(void) {
             }
         }
         if (!gAction_replay_mode) {
-            if (sim_due)
+            if (sim_due) {
+                tU32 saved_period = gFrame_period;
+                gFrame_period = sim_step;
                 CheckTimer();
+                gFrame_period = saved_period;
+            }
         } else {
             PollActionReplayControls(render_period);
         }

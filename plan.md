@@ -132,7 +132,9 @@ scene submits about 3408 draws, 38638 vertices and 65949 indices because the bri
 per material run with no batching. Four fixed-yaw horizon copies follow the camera position and
 cover the full circle; they are submitted before the world with depth testing behind the car and
 track. The new path scales the camera far plane to twenty times the configured yon
-(`RVK_FAR_MULTIPLIER` overrides it) and submits the pedestrian lollipop queue explicitly.
+(`RVK_FAR_MULTIPLIER` overrides it), submits the pedestrian lollipop queue explicitly, invalidates
+its texture cache on track load/unload, and maps the legacy background-fill decision to the
+Vulkan clear colour.
 Dynamic horizon clipping, shadow, mirror, cockpit and effect passes are not implemented.
 
 Early performance: Release, 640x480, IMMEDIATE, `--fps=0`, one 60-second stationary autostart

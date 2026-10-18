@@ -7,6 +7,7 @@ extern "C" {
 #endif
 int GameRender_Init(const RvkPlatform *platform, uint32_t width, uint32_t height);
 void GameRender_Shutdown(void);
+void GameRender_ResetTrackResources(void);
 void GameRender_OnResize(int width, int height);
 void GameRender_Begin2D(br_pixelmap *back);
 void GameRender_BeginScene(br_actor *camera);

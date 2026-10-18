@@ -146,6 +146,9 @@ DDI renderer. The horizon is submitted before the world and is occluded by neare
 The frame uses:
 
 - `src/DETHRACE/common/render_vk_bridge.c` for BRender data extraction and the CPU 2D overlay;
+  track load/unload invalidates cached Vulkan textures, and the clear colour follows the legacy
+  `ConditionallyFillWithSky` decision (fog, special-volume colour, or black) instead of being
+  hard-coded;
 - `rvk_draw_world` with per-actor model matrices, a shared view-projection matrix, per-draw
   materials and textures;
 - `rvk_draw_overlay` for the existing 16-bit/8-bit HUD surface while the UI is ported;

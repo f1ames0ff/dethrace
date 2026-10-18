@@ -23,6 +23,9 @@
 #include "pedestrn.h"
 #include "piping.h"
 #include "replay.h"
+#ifdef DETHRACE_RENDER_VK
+#include "render_vk_bridge.h"
+#endif
 #include "skidmark.h"
 #include "spark.h"
 #include "trig.h"
@@ -2558,6 +2561,9 @@ void FreeExceptions(void) {
 // FUNCTION: CARM95 0x0043a136
 void LoadTrack(char* pFile_name, tTrack_spec* pTrack_spec, tRace_info* pRace_info) {
     char temp_name[14];
+#ifdef DETHRACE_RENDER_VK
+    GameRender_ResetTrackResources();
+#endif
     FILE* f;
     FILE* non_car_f;
     FILE* g;
@@ -3137,6 +3143,9 @@ void FreeTrack(tTrack_spec* pTrack_spec) {
     int i;
     tNon_car_spec* non_car;
 
+#ifdef DETHRACE_RENDER_VK
+    GameRender_ResetTrackResources();
+#endif
     if (gAdditional_actors != NULL) {
         BrActorRemove(gAdditional_actors);
         BrActorFree(gAdditional_actors);

@@ -172,7 +172,8 @@ static void SDL2_Harness_ProcessWindowMessages(void) {
             break;
 
         case SDL_WINDOWEVENT:
-            if (event.window.event == SDL_WINDOWEVENT_RESIZED) {
+            if (event.window.event == SDL_WINDOWEVENT_RESIZED
+                || event.window.event == SDL_WINDOWEVENT_SIZE_CHANGED) {
                 calculate_viewport(event.window.data1, event.window.data2);
 #ifdef DETHRACE_RENDER_VK
                 if (harness_game_config.render_vk_mode && gHarness_platform.RenderVk_OnResize != NULL) {

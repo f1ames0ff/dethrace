@@ -51,6 +51,8 @@ static size_t gRenderVk_overlay_capacity;
 static float gRenderVk_view_proj[16];
 static int gRenderVk_scene_ready;
 static br_actor *gRenderVk_camera;
+static br_angle gRenderVk_sky_base_yaw;
+static int gRenderVk_sky_base_yaw_valid;
 
 static GameRenderTextureEntry *gRenderVk_textures;
 static uint32_t gRenderVk_texture_count;
@@ -843,6 +845,23 @@ int GameRender_Init(const RvkPlatform *platform, uint32_t width, uint32_t height
     return 0;
 }
 
+void GameRender_ResetTrackResources(void) {
+    uint32_t i;
+
+    gRenderVk_sky_base_yaw_valid = 0;
+    gOld_fov = 0;
+    gOld_yon = 0;
+    if (gRenderVk_device != NULL) {
+        rvk_wait_idle(gRenderVk_device);
+        for (i = 0; i < gRenderVk_texture_count; i++) {
+            if (gRenderVk_textures[i].owned) {
+                rvk_destroy_texture(gRenderVk_device, gRenderVk_textures[i].texture);
+            }
+        }
+    }
+    gRenderVk_texture_count = 0;
+}
+
 void GameRender_Shutdown(void) {
     uint32_t i;
 
@@ -1009,9 +1028,6 @@ void GameRender_BeginScene(br_actor *camera) {
     }
 }
 
-static br_angle gRenderVk_sky_base_yaw;
-static int gRenderVk_sky_base_yaw_valid;
-
 static int GameRender_PrepareSky(br_actor *camera) {
     br_camera *camera_data;
 
@@ -1101,8 +1117,34 @@ static void GameRender_LogFps(void) {
     }
 }
 
+static void GameRender_BackgroundClearColour(float colour[4]) {
+    int fill_index = 0;
+    uint32_t rgb = 0;
+
+    colour[0] = 0.0f;
+    colour[1] = 0.0f;
+    colour[2] = 0.0f;
+    colour[3] = 1.0f;
+    if (gProgram_state.current_depth_effect.sky_texture != NULL
+        && (gLast_camera_special_volume == NULL || gLast_camera_special_volume->sky_col < 0)) {
+        return;
+    }
+    if (gProgram_state.current_depth_effect.type == eDepth_effect_fog
+        || gSwap_depth_effect_type == eDepth_effect_fog) {
+        fill_index = 255;
+    } else if (gProgram_state.current_depth_effect.type && gSwap_depth_effect_type
+        && gLast_camera_special_volume != NULL && gLast_camera_special_volume->sky_col >= 0) {
+        fill_index = gLast_camera_special_volume->sky_col;
+    }
+    if (gCurrent_palette != NULL && GameRender_PaletteColour(gCurrent_palette, (uint32_t)fill_index, &rgb)) {
+        colour[0] = (float)((rgb >> 16) & 0xFFu) / 255.0f;
+        colour[1] = (float)((rgb >> 8) & 0xFFu) / 255.0f;
+        colour[2] = (float)(rgb & 0xFFu) / 255.0f;
+    }
+}
+
 void GameRender_Swap(br_pixelmap *back) {
-    static const float clear_color[4] = {0.0f, 0.0f, 0.0f, 1.0f};
+    float clear_color[4];
     RvkResult result;
     int have_overlay;
     int device_lost;
@@ -1110,6 +1152,7 @@ void GameRender_Swap(br_pixelmap *back) {
     if (!GameRender_IsActive()) {
         return;
     }
+    GameRender_BackgroundClearColour(clear_color);
     if (gHarness_platform.ProcessWindowMessages != NULL) {
         gHarness_platform.ProcessWindowMessages();
     }
