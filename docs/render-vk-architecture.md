@@ -149,24 +149,28 @@ The frame uses:
 - `rvk_create_texture` with bridge-side texture caching, and prepared `v11group` data for track
   models whose original vertex/face arrays were released by `DodgyModelUpdate`.
 
-The first measured scene has about 3512 draws, 39917 vertices and 70020 indices. The CPU bridge
+The first measured scene has about 3408 draws, 38638 vertices and 65949 indices. The CPU bridge
 walks the live BRender scene every frame with no batching, indirect submission, shadows, mirror,
 cockpit target, smoke/spark effect or full UI pass. The horizon/sky pass is also missing, so the
 track backdrop does not yet match the legacy capture.
 
 A preliminary performance run used the Release build, 640x480, IMMEDIATE present, `--fps=0` and
-`RVK_AUTOSTART=1` with `RVK_FPS_LOG=1`. One 60-second stationary start scene produced 1016-1052
-presented frames per second (59 one-second samples, about 1013 frames/s including the warm-up
-sample), with 3512 draws. This exceeds the 200 FPS target for this scene. It is not the formal N4
-acceptance: that still needs 5 x 60 s moving-race runs, p50/p95/p99 and the parity gates.
+`RVK_AUTOSTART=1` with `RVK_FPS_LOG=1`. One 60-second stationary start scene produced 1016-1067
+presented frames per second in the steady samples (59 one-second samples, about 1020 frames/s
+including the warm-up sample), with 3408 draws. This exceeds the 200 FPS target for this scene. It
+is not the formal N4 acceptance: that still needs 5 x 60 s moving-race runs, p50/p95/p99 and the
+parity gates.
 
 Depth needs the BRender convention, not the usual OpenGL one. BRender's perspective maps the near
 plane to `z/w = +1` and the far plane to `-1`. The world shader therefore writes
 `(clip.w - clip.z) * 0.5` and the pipeline compares depth with `LESS_OR_EQUAL`; using
-`(clip.z + clip.w) * 0.5` hides the player car behind the track. Actor children are traversed even
-when a parent's render style is `BR_RSTYLE_NONE`, because the car uses a non-rendering master actor
-above its model actors. `docs/images/legacy-race-reference.png` is the legacy vkrend capture from
-the same autostart pose.
+`(clip.z + clip.w) * 0.5` hides the player car behind the track.
+
+A parent actor with `BR_RSTYLE_NONE` must prune its subtree, not just its own model. The hidden
+car variants use that style; descending through them leaked the `FIN.DAT` bonnet fin into the
+frame as a gray spike. Skipping the subtree removes the spike while keeping the visible car
+hierarchy. The car became visible because of the depth fix, not because of the traversal change.
+`docs/images/legacy-race-reference.png` is the legacy vkrend capture from the same autostart pose.
 
 ## N1 plan
 

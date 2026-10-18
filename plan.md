@@ -124,14 +124,15 @@ bottleneck.
 
 The world and overlay passes, depth, textures, sampler/descriptor arrays and one frame in flight
 exist. BRender's reversed depth convention is mapped explicitly; without it the track occludes the
-car. The first race scene submits about 3512 draws, 39917 vertices and 70020 indices because the
-bridge emits one draw per material run with no batching. Shadow, mirror, cockpit, horizon/sky and
-effect passes are not implemented.
+car. `BR_RSTYLE_NONE` prunes the actor subtree, which keeps hidden car variants and their child
+parts (such as `FIN.DAT`) out of the frame. The first race scene submits about 3408 draws, 38638
+vertices and 65949 indices because the bridge emits one draw per material run with no batching.
+Shadow, mirror, cockpit, horizon/sky and effect passes are not implemented.
 
 Early performance: Release, 640x480, IMMEDIATE, `--fps=0`, one 60-second stationary autostart
-scene with `RVK_FPS_LOG=1`: 1016-1052 presented frames/s, about 1013 frames/s over 59 samples,
-with 3512 draws. This exceeds 200 FPS for this scene, but is not the formal N4 gate; moving-race
-parity and 5 x 60 s percentile runs remain.
+scene with `RVK_FPS_LOG=1`: 1016-1067 presented frames/s in steady samples, about 1020 frames/s
+over 59 samples including warm-up, with 3408 draws. This exceeds 200 FPS for this scene, but is
+not the formal N4 gate; moving-race parity and 5 x 60 s percentile runs remain.
 
 Exit: 640x480 scene at target throughput in the authorized optimized build; validation clean;
 p50/p95/p99 recorded; no per-draw descriptor writes; draw count measured; the measured reason for
@@ -142,10 +143,11 @@ Add a game-facing `render_api` and `game_render` bridge. Port `RenderAFrame` orc
 camera, cars, track, effects, HUD, map, mirror, cockpit, shadows. Keep the legacy path behind a
 selector for A/B. No BRender renderer/DDI calls in the new path.
 
-The forward world, camera, player car and HUD overlay now run in a race. `RVK_AUTOSTART=1` is a
-verification hook that skips the menus and grid screen; it works in both renderer builds for
-same-pose comparisons and is not a shipping default. Map, mirror, cockpit, horizon/sky, shadows,
-smoke, sparks, splashes and summary parity remain.
+The forward world, camera, player car and HUD overlay now run in a race. Hidden car subtrees are
+pruned correctly, removing the stray bonnet-fin geometry. `RVK_AUTOSTART=1` is a verification
+hook that skips the menus and grid screen; it works in both renderer builds for same-pose
+comparisons and is not a shipping default. Map, mirror, cockpit, horizon/sky, shadows, smoke,
+sparks, splashes and summary parity remain.
 
 Exit: race playable through the new path; forward/mirror/cockpit/map/summary parity; legacy
 software/OpenGL still work.
@@ -155,7 +157,7 @@ Full visual parity set (forward, mirror, cockpit, map, summary, pratcam, fades, 
 frontend, damaged/repair), 10-minute race, validation, 200 FPS in the authorized optimized build.
 Exit: mean <= 5.0 ms, p50/p95/p99 reported; no 4101/device loss/camera assert; one instance.
 
-The Release start scene is already around 1013 presented frames/s with 3512 draws; the formal
+The Release start scene is already around 1020 presented frames/s with 3408 draws; the formal
 five-run moving-race measurement and parity set are still required.
 
 ### N5 - remove the legacy render path

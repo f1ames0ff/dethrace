@@ -654,13 +654,15 @@ static void GameRender_AddActor(br_actor *actor, br_actor *universe, br_model *m
     if (actor->render_style != BR_RSTYLE_DEFAULT) {
         style = actor->render_style;
     }
-    if (style != BR_RSTYLE_NONE && actor->type == BR_ACTOR_MODEL && model != NULL
+    if (style == BR_RSTYLE_NONE) {
+        return;
+    }
+    if (actor->type == BR_ACTOR_MODEL && model != NULL
         && ((model->vertices != NULL && model->faces != NULL && model->nvertices != 0 && model->nfaces != 0) || model->prepared != NULL)) {
         GameRender_AddModel(actor, universe, model, material);
     }
     for (child = actor->children; child != NULL; child = child->next) {
-        GameRender_AddActor(child, universe, model, material,
-            style == BR_RSTYLE_NONE ? BR_RSTYLE_DEFAULT : style);
+        GameRender_AddActor(child, universe, model, material, style);
     }
 }
 
