@@ -125,9 +125,9 @@ bottleneck.
 The world and overlay passes, depth, textures, sampler/descriptor arrays and one frame in flight
 exist. BRender's reversed depth convention is mapped explicitly; without it the track occludes the
 car. `BR_RSTYLE_NONE` prunes the actor subtree, which keeps hidden car variants and their child
-parts (such as `FIN.DAT`) out of the frame. The world pipeline blends by source alpha and currently
-discards near-black final texels unconditionally as a conservative colour-key fallback; an exact
-per-material colour-key path remains. The first race
+parts (such as `FIN.DAT`) out of the frame. Black texture texels receive alpha 0, the world
+pipeline blends by source alpha, and the 2D overlay uses palette index 0 as its transparent key
+while keeping index 255 white highlights opaque. The first race
 scene submits about 3408 draws, 38638 vertices and 65949 indices because the bridge emits one draw
 per material run with no batching. Four fixed-yaw horizon copies follow the camera position and
 cover the full circle; they are submitted before the world with depth testing behind the car and

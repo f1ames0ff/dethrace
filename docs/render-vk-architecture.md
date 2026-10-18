@@ -151,10 +151,10 @@ The frame uses:
 - `rvk_draw_overlay` for the existing 16-bit/8-bit HUD surface while the UI is ported;
 - `rvk_create_texture` with bridge-side texture caching, and prepared `v11group` data for track
   models whose original vertex/face arrays were released by `DodgyModelUpdate`;
-- material opacity and colour-key handling. The world pipeline blends with source alpha, and the
-  fragment shader currently discards near-black final texels unconditionally as a conservative
-  colour-key fallback. This removes black sprite rectangles such as the car's spike sprite;
-  material flags remain in the draw record for a later, exact colour-key pass;
+- material opacity and colour-key handling. Black texels in the converted 8-bit/16-bit/24-bit
+  images receive alpha 0, the fragment shader discards alpha below 0.01, and the world pipeline
+  blends with source alpha. This removes black sprite rectangles such as the car's spike sprite.
+  The 2D overlay treats palette index 0 as transparent, preserving index 255 white highlights;
 - an initial horizon pass. Four copies of `HORIZON.MAT` cover the full circle at a fixed world
   yaw while following the camera position, so camera turns reveal a different part of the
   background instead of dragging the whole panorama with the view. The copies are submitted

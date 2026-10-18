@@ -23,6 +23,7 @@
 #define GAME_RENDER_INITIAL_VERTICES 4096u
 #define GAME_RENDER_INITIAL_INDICES 12288u
 #define GAME_RENDER_INITIAL_DRAWS 256u
+#define GAME_RENDER_TRANSPARENT_INDEX 0u
 
 typedef struct GameRenderTextureEntry {
     br_pixelmap *source;
@@ -201,7 +202,7 @@ static int GameRender_ConvertPixelmap(br_pixelmap *pm, uint8_t *rgba8) {
                 *out++ = (uint8_t)((colour >> 16) & 0xFFu);
                 *out++ = (uint8_t)((colour >> 8) & 0xFFu);
                 *out++ = (uint8_t)(colour & 0xFFu);
-                *out++ = 255;
+                *out++ = (colour & 0xFFFFFFu) == 0 ? 0 : 255;
             }
         }
         return 1;
@@ -213,7 +214,7 @@ static int GameRender_ConvertPixelmap(br_pixelmap *pm, uint8_t *rgba8) {
                 *out++ = GameRender_Expand5((value >> 11) & 31u);
                 *out++ = GameRender_Expand6((value >> 5) & 63u);
                 *out++ = GameRender_Expand5(value & 31u);
-                *out++ = 255;
+                *out++ = value == 0 ? 0 : 255;
             }
         }
         return 1;
@@ -225,7 +226,7 @@ static int GameRender_ConvertPixelmap(br_pixelmap *pm, uint8_t *rgba8) {
                 *out++ = texel[2];
                 *out++ = texel[1];
                 *out++ = texel[0];
-                *out++ = 255;
+                *out++ = (texel[0] | texel[1] | texel[2]) == 0 ? 0 : 255;
             }
         }
         return 1;
@@ -716,7 +717,7 @@ static int GameRender_BuildOverlay(br_pixelmap *back) {
             dest = gRenderVk_overlay + (size_t)y * width;
             for (x = 0; x < width; x++) {
                 value = row[x];
-                if (value == 255u) {
+                if (value == GAME_RENDER_TRANSPARENT_INDEX) {
                     dest[x] = 0;
                 } else if (palette != NULL && GameRender_PaletteColour(palette, value, &colour)) {
                     dest[x] = ((colour >> 16) & 0xFFu) | (colour & 0x0000FF00u) | ((colour & 0xFFu) << 16) | 0xFF000000u;
@@ -929,7 +930,7 @@ void GameRender_Begin2D(br_pixelmap *back) {
     case BR_PMT_INDEX_8:
         for (y = 0; y < back->height; y++) {
             row = GameRender_RowPointer(back, y, 1);
-            memset(row, 255, back->width);
+            memset(row, GAME_RENDER_TRANSPARENT_INDEX, back->width);
         }
         break;
     case BR_PMT_RGB_565:
