@@ -131,7 +131,9 @@ per-material colour-key path remains. The first race
 scene submits about 3408 draws, 38638 vertices and 65949 indices because the bridge emits one draw
 per material run with no batching. An initial horizon pass is camera-centred for coverage but
 keeps its initial rotation, and is submitted before the world with depth testing behind the car
-and track. Dynamic horizon clipping, shadow, mirror, cockpit and effect passes are not implemented.
+and track. The new path scales the camera far plane to three times the configured yon
+(`RVK_FAR_MULTIPLIER` overrides it) and submits the pedestrian lollipop queue explicitly.
+Dynamic horizon clipping, shadow, mirror, cockpit and effect passes are not implemented.
 
 Early performance: Release, 640x480, IMMEDIATE, `--fps=0`, one 60-second stationary autostart
 scene with `RVK_FPS_LOG=1`: 1016-1067 presented frames/s in steady samples, about 1020 frames/s
@@ -149,10 +151,11 @@ selector for A/B. No BRender renderer/DDI calls in the new path.
 
 The forward world, camera, player car and HUD overlay now run in a race. Hidden car subtrees are
 pruned correctly, removing the stray bonnet-fin geometry. The horizon is now drawn before the
-world with normal depth, so it stays behind the car and track. `RVK_AUTOSTART=1` is a verification
-hook that skips the menus and grid screen; it works in both renderer builds for same-pose
-comparisons and is not a shipping default. Map, mirror, cockpit, dynamic horizon clipping,
-shadows, smoke, sparks, splashes and summary parity remain.
+world with normal depth, so it stays behind the car and track. The far plane is extended and
+pedestrian lollipops are rendered. `RVK_AUTOSTART=1` is a verification hook that skips the menus
+and grid screen; it works in both renderer builds for same-pose comparisons and is not a shipping
+default. Map, mirror, cockpit, dynamic horizon clipping, shadows, smoke, sparks, splashes and
+summary parity remain.
 
 Exit: race playable through the new path; forward/mirror/cockpit/map/summary parity; legacy
 software/OpenGL still work.

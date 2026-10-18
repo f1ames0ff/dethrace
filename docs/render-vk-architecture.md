@@ -137,9 +137,11 @@ The new path is selected with `--render-vk`. A test hook, `RVK_AUTOSTART=1`, sta
 race without menu input; it works in both renderer builds so the same pose can be captured with
 the legacy path for comparison. It is a verification aid, not a shipping default. The log shows
 `VKREND: race loop started`, and the new renderer builds and submits a world pass every frame. The
-first captured race frame is `docs/images/render-vk-first-race.png`; it shows the track, the
-player car upright and the existing HUD overlay. The horizon is submitted before the world and is
-occluded by nearer track geometry; a near trackside wall hides the city in this start view.
+captured race frame `docs/images/render-vk-first-race.png` shows the extended track view, the
+player car, opponents, pedestrians and the existing HUD overlay. The camera far plane is scaled to
+three times the configured yon; `RVK_FAR_MULTIPLIER` overrides it. Pedestrians are submitted
+explicitly from the lollipop queue because their actors remain `BR_RSTYLE_NONE` for the legacy
+DDI renderer. The horizon is submitted before the world and is occluded by nearer track geometry.
 
 The frame uses:
 
