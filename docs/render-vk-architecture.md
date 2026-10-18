@@ -139,7 +139,7 @@ the legacy path for comparison. It is a verification aid, not a shipping default
 `VKREND: race loop started`, and the new renderer builds and submits a world pass every frame. The
 captured race frame `docs/images/render-vk-first-race.png` shows the extended track view, the
 player car, opponents, pedestrians and the existing HUD overlay. The camera far plane is scaled to
-three times the configured yon; `RVK_FAR_MULTIPLIER` overrides it. Pedestrians are submitted
+ten times the configured yon; `RVK_FAR_MULTIPLIER` overrides it. Pedestrians are submitted
 explicitly from the lollipop queue because their actors remain `BR_RSTYLE_NONE` for the legacy
 DDI renderer. The horizon is submitted before the world and is occluded by nearer track geometry.
 

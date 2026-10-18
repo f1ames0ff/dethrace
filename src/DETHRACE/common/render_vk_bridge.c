@@ -968,7 +968,7 @@ void GameRender_BeginScene(br_actor *camera) {
         static float yon_base;
         static int yon_base_valid;
         const char *far_value = getenv("RVK_FAR_MULTIPLIER");
-        float multiplier = 3.0f;
+        float multiplier = 10.0f;
 
         if (far_value != NULL) {
             char *end = NULL;

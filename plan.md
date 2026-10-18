@@ -131,7 +131,7 @@ per-material colour-key path remains. The first race
 scene submits about 3408 draws, 38638 vertices and 65949 indices because the bridge emits one draw
 per material run with no batching. Four fixed-yaw horizon copies follow the camera position and
 cover the full circle; they are submitted before the world with depth testing behind the car and
-track. The new path scales the camera far plane to three times the configured yon
+track. The new path scales the camera far plane to ten times the configured yon
 (`RVK_FAR_MULTIPLIER` overrides it) and submits the pedestrian lollipop queue explicitly.
 Dynamic horizon clipping, shadow, mirror, cockpit and effect passes are not implemented.
 
