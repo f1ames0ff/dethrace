@@ -46,6 +46,8 @@ typedef struct RvkWorldDraw {
 } RvkWorldDraw;
 
 #define RVK_DRAW_FLAG_COLOUR_KEY 1u
+#define RVK_DRAW_FLAG_NO_DEPTH 2u
+#define RVK_DRAW_FLAG_SKY 4u
 
 typedef void (*RvkLogFn)(void *user, int level, const char *message);
 typedef void (*RvkProc)(void);

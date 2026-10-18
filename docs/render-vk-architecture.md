@@ -137,8 +137,8 @@ The new path is selected with `--render-vk`. A test hook, `RVK_AUTOSTART=1`, sta
 race without menu input; it works in both renderer builds so the same pose can be captured with
 the legacy path for comparison. It is a verification aid, not a shipping default. The log shows
 `VKREND: race loop started`, and the new renderer builds and submits a world pass every frame. The
-first captured race frame is `docs/images/render-vk-first-race.png`; it shows the track and the
-player car upright, with the existing HUD overlay.
+first captured race frame is `docs/images/render-vk-first-race.png`; it shows the track, the
+player car upright, the city skyline and the existing HUD overlay.
 
 The frame uses:
 
@@ -151,12 +151,15 @@ The frame uses:
 - material opacity and colour-key handling. The world pipeline blends with source alpha, and the
   fragment shader discards near-black texels when the material has colour keying enabled (the
   BRender default unless `BR_MATF_DISABLE_COLOUR_KEY` is set). This removes black sprite
-  rectangles such as the car's spike sprite.
+  rectangles such as the car's spike sprite;
+- an initial horizon pass. `HORIZON.MAT` is added after the world with depth testing disabled and
+  a top-screen scissor, so the city panorama covers the background without covering the car or
+  track. Dynamic horizon clipping is still to do.
 
 The first measured scene has about 3408 draws, 38638 vertices and 65949 indices. The CPU bridge
 walks the live BRender scene every frame with no batching, indirect submission, shadows, mirror,
-cockpit target, smoke/spark effect or full UI pass. The horizon/sky pass is also missing, so the
-track backdrop does not yet match the legacy capture.
+cockpit target, smoke/spark effect or full UI pass. The initial horizon pass covers the backdrop,
+but its scissor is fixed to the upper screen instead of following the real horizon.
 
 A preliminary performance run used the Release build, 640x480, IMMEDIATE present, `--fps=0` and
 `RVK_AUTOSTART=1` with `RVK_FPS_LOG=1`. One 60-second stationary start scene produced 1016-1067

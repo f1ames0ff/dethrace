@@ -1,9 +1,11 @@
 #include "render_vk_bridge.h"
 
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
+#include "depth.h"
 #include "globvars.h"
 #include "graphics.h"
 #include "harness/hooks.h"
@@ -41,6 +43,7 @@ static uint32_t gRenderVk_index_capacity;
 static RvkWorldDraw *gRenderVk_draws;
 static uint32_t gRenderVk_draw_count;
 static uint32_t gRenderVk_draw_capacity;
+static uint32_t gRenderVk_draw_flags;
 static uint32_t *gRenderVk_overlay;
 static size_t gRenderVk_overlay_capacity;
 static float gRenderVk_view_proj[16];
@@ -439,7 +442,7 @@ static int GameRender_EmitRun(const float model[16], br_material *material, uint
     draw = &gRenderVk_draws[gRenderVk_draw_count++];
     draw->first_index = first_index;
     draw->index_count = index_count;
-    draw->flags = 0;
+    draw->flags = gRenderVk_draw_flags;
     memcpy(draw->model, model, sizeof(draw->model));
     draw->texture = GameRender_GetTexture(material != NULL ? material->colour_map : NULL);
     draw->tint[0] = 1.0f;
@@ -678,6 +681,7 @@ static void GameRender_ResetScene(void) {
     gRenderVk_vertex_count = 0;
     gRenderVk_index_count = 0;
     gRenderVk_draw_count = 0;
+    gRenderVk_draw_flags = 0;
 }
 
 static int GameRender_BuildOverlay(br_pixelmap *back) {
@@ -983,11 +987,39 @@ void GameRender_BeginScene(br_actor *camera) {
     }
 }
 
+static int GameRender_PrepareSky(br_actor *camera) {
+    br_camera *camera_data;
+    br_angle yaw;
+
+    if (camera == NULL || camera->type_data == NULL || gForward_sky_actor == NULL || gForward_sky_model == NULL
+        || gHorizon_material == NULL || gProgram_state.current_depth_effect.sky_texture == NULL
+        || (gLast_camera_special_volume != NULL && gLast_camera_special_volume->sky_col >= 0)) {
+        return 0;
+    }
+    camera_data = (br_camera *)camera->type_data;
+    if (camera_data->field_of_view != gOld_fov || camera_data->yon_z != gOld_yon) {
+        MungeSkyModel(camera, gForward_sky_model);
+        gOld_fov = camera_data->field_of_view;
+        gOld_yon = camera_data->yon_z;
+    }
+    yaw = BrRadianToAngle(atan2(gCamera_to_world.m[2][0], gCamera_to_world.m[2][2]));
+    BrMatrix34RotateY(&gForward_sky_actor->t.t.mat, yaw);
+    BrVector3Copy(&gForward_sky_actor->t.t.translate.t, (br_vector3 *)gCamera_to_world.m[3]);
+    gForward_sky_actor->render_style = BR_RSTYLE_FACES;
+    return 1;
+}
+
 void GameRender_AddUniverse(br_actor *universe) {
     if (!GameRender_IsActive() || universe == NULL || universe == gDont_render_actor) {
         return;
     }
     GameRender_AddActor(universe, universe, NULL, NULL, BR_RSTYLE_DEFAULT);
+    if (GameRender_PrepareSky(gRenderVk_camera)) {
+        gRenderVk_draw_flags = RVK_DRAW_FLAG_NO_DEPTH | RVK_DRAW_FLAG_COLOUR_KEY | RVK_DRAW_FLAG_SKY;
+        GameRender_AddActor(gForward_sky_actor, universe, NULL, gHorizon_material, BR_RSTYLE_FACES);
+        gRenderVk_draw_flags = 0;
+        gForward_sky_actor->render_style = BR_RSTYLE_NONE;
+    }
     if (gRenderVk_draw_count > 0) {
         gRenderVk_scene_ready = 1;
     }

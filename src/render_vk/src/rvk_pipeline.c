@@ -11,7 +11,7 @@ static VkResult rvk_create_shader_module(RvkDevice *device, const uint32_t *code
     return device->vk.CreateShaderModule(device->device, &create_info, NULL, module);
 }
 
-static RvkResult rvk_create_world_pipeline(RvkDevice *device) {
+static RvkResult rvk_create_world_pipeline(RvkDevice *device, VkBool32 depth_test, VkPipeline *out_pipeline) {
     VkShaderModule vertex_module = VK_NULL_HANDLE;
     VkShaderModule fragment_module = VK_NULL_HANDLE;
     VkPipelineShaderStageCreateInfo stages[2];
@@ -100,8 +100,8 @@ static RvkResult rvk_create_world_pipeline(RvkDevice *device) {
 
     memset(&depth_stencil, 0, sizeof(depth_stencil));
     depth_stencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
-    depth_stencil.depthTestEnable = VK_TRUE;
-    depth_stencil.depthWriteEnable = VK_TRUE;
+    depth_stencil.depthTestEnable = depth_test;
+    depth_stencil.depthWriteEnable = depth_test;
     depth_stencil.depthCompareOp = VK_COMPARE_OP_LESS_OR_EQUAL;
     depth_stencil.depthBoundsTestEnable = VK_FALSE;
     depth_stencil.stencilTestEnable = VK_FALSE;
@@ -161,7 +161,7 @@ static RvkResult rvk_create_world_pipeline(RvkDevice *device) {
     pipeline_info.layout = device->world_pipeline_layout;
     pipeline_info.renderPass = device->world_render_pass;
     pipeline_info.subpass = 0;
-    result = device->vk.CreateGraphicsPipelines(device->device, VK_NULL_HANDLE, 1, &pipeline_info, NULL, &device->world_pipeline);
+    result = device->vk.CreateGraphicsPipelines(device->device, VK_NULL_HANDLE, 1, &pipeline_info, NULL, out_pipeline);
     device->vk.DestroyShaderModule(device->device, fragment_module, NULL);
     device->vk.DestroyShaderModule(device->device, vertex_module, NULL);
     if (result != VK_SUCCESS) {
@@ -293,7 +293,11 @@ static RvkResult rvk_create_overlay_pipeline(RvkDevice *device, VkRenderPass ren
 RvkResult rvk_create_pipelines(RvkDevice *device) {
     RvkResult result;
 
-    result = rvk_create_world_pipeline(device);
+    result = rvk_create_world_pipeline(device, VK_TRUE, &device->world_pipeline);
+    if (result != RVK_OK) {
+        return result;
+    }
+    result = rvk_create_world_pipeline(device, VK_FALSE, &device->world_sky_pipeline);
     if (result != RVK_OK) {
         return result;
     }
@@ -317,6 +321,9 @@ void rvk_destroy_pipelines(RvkDevice *device) {
     if (device->world_pipeline != VK_NULL_HANDLE && device->vk.DestroyPipeline != NULL) {
         device->vk.DestroyPipeline(device->device, device->world_pipeline, NULL);
     }
+    if (device->world_sky_pipeline != VK_NULL_HANDLE && device->vk.DestroyPipeline != NULL) {
+        device->vk.DestroyPipeline(device->device, device->world_sky_pipeline, NULL);
+    }
     if (device->overlay_pipeline_layout != VK_NULL_HANDLE && device->vk.DestroyPipelineLayout != NULL) {
         device->vk.DestroyPipelineLayout(device->device, device->overlay_pipeline_layout, NULL);
     }
@@ -326,6 +333,7 @@ void rvk_destroy_pipelines(RvkDevice *device) {
     device->overlay_clear_pipeline = VK_NULL_HANDLE;
     device->overlay_load_pipeline = VK_NULL_HANDLE;
     device->world_pipeline = VK_NULL_HANDLE;
+    device->world_sky_pipeline = VK_NULL_HANDLE;
     device->overlay_pipeline_layout = VK_NULL_HANDLE;
     device->world_pipeline_layout = VK_NULL_HANDLE;
 }

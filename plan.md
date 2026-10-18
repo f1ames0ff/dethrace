@@ -128,8 +128,9 @@ car. `BR_RSTYLE_NONE` prunes the actor subtree, which keeps hidden car variants 
 parts (such as `FIN.DAT`) out of the frame. The world pipeline blends by source alpha and discards
 colour-keyed near-black texels, matching BRender's default sprite transparency. The first race
 scene submits about 3408 draws, 38638 vertices and 65949 indices because the bridge emits one draw
-per material run with no batching. Shadow, mirror, cockpit, horizon/sky and effect passes are not
-implemented.
+per material run with no batching. An initial horizon pass is implemented with a no-depth sky
+pipeline and a fixed upper-screen scissor; dynamic horizon clipping, shadow, mirror, cockpit and
+effect passes are not implemented.
 
 Early performance: Release, 640x480, IMMEDIATE, `--fps=0`, one 60-second stationary autostart
 scene with `RVK_FPS_LOG=1`: 1016-1067 presented frames/s in steady samples, about 1020 frames/s
@@ -146,10 +147,11 @@ camera, cars, track, effects, HUD, map, mirror, cockpit, shadows. Keep the legac
 selector for A/B. No BRender renderer/DDI calls in the new path.
 
 The forward world, camera, player car and HUD overlay now run in a race. Hidden car subtrees are
-pruned correctly, removing the stray bonnet-fin geometry. `RVK_AUTOSTART=1` is a verification
-hook that skips the menus and grid screen; it works in both renderer builds for same-pose
-comparisons and is not a shipping default. Map, mirror, cockpit, horizon/sky, shadows, smoke,
-sparks, splashes and summary parity remain.
+pruned correctly, removing the stray bonnet-fin geometry. The city horizon is back as an initial
+screen-scissored overlay. `RVK_AUTOSTART=1` is a verification hook that skips the menus and grid
+screen; it works in both renderer builds for same-pose comparisons and is not a shipping default.
+Map, mirror, cockpit, dynamic horizon clipping, shadows, smoke, sparks, splashes and summary
+parity remain.
 
 Exit: race playable through the new path; forward/mirror/cockpit/map/summary parity; legacy
 software/OpenGL still work.

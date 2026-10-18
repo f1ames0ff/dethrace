@@ -32,6 +32,7 @@ RvkResult rvk_draw_world(RvkDevice *device, const float view_proj[16],
     VkViewport viewport;
     VkRect2D scissor;
     VkDeviceSize vertex_offset = 0;
+    VkPipeline bound_pipeline = VK_NULL_HANDLE;
     uint32_t i;
 
     if (device == NULL || view_proj == NULL || vertices == NULL || indices == NULL || draws == NULL) {
@@ -82,7 +83,6 @@ RvkResult rvk_draw_world(RvkDevice *device, const float view_proj[16],
     scissor.extent = device->extent;
     device->vk.CmdSetViewport(device->command_buffer, 0, 1, &viewport);
     device->vk.CmdSetScissor(device->command_buffer, 0, 1, &scissor);
-    device->vk.CmdBindPipeline(device->command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, device->world_pipeline);
     device->vk.CmdBindDescriptorSets(device->command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
         device->world_pipeline_layout, 0, 1, &device->ubo_descriptor, 0, NULL);
     device->vk.CmdBindVertexBuffers(device->command_buffer, 0, 1, &device->world_vertex_buffer, &vertex_offset);
@@ -92,6 +92,8 @@ RvkResult rvk_draw_world(RvkDevice *device, const float view_proj[16],
         const RvkWorldDraw *draw = &draws[i];
         RvkWorldPush push;
         VkDescriptorSet texture = rvk_texture_descriptor(device, draw->texture);
+        VkPipeline pipeline;
+        VkRect2D draw_scissor = scissor;
 
         if (texture == VK_NULL_HANDLE) {
             continue;
@@ -99,6 +101,15 @@ RvkResult rvk_draw_world(RvkDevice *device, const float view_proj[16],
         if (draw->first_index + draw->index_count > index_count) {
             continue;
         }
+        pipeline = (draw->flags & RVK_DRAW_FLAG_NO_DEPTH) ? device->world_sky_pipeline : device->world_pipeline;
+        if (pipeline != bound_pipeline) {
+            device->vk.CmdBindPipeline(device->command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
+            bound_pipeline = pipeline;
+        }
+        if ((draw->flags & RVK_DRAW_FLAG_SKY) != 0) {
+            draw_scissor.extent.height = (device->extent.height * 5u) / 12u;
+        }
+        device->vk.CmdSetScissor(device->command_buffer, 0, 1, &draw_scissor);
         memcpy(push.model, draw->model, sizeof(push.model));
         memcpy(push.tint, draw->tint, sizeof(push.tint));
         push.flags = draw->flags;
