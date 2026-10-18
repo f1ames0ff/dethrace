@@ -182,11 +182,11 @@ windowed IMMEDIATE presentation can still be compositor-limited.
 
 - The texture upload path now reuses one command pool, command buffer and fence instead of creating and
   destroying them for every texture (this alone removed roughly 15 ms/frame in Debug).
-- Draws use one descriptor set with a 512-entry texture array, a direct-mapped material cache and a
-  process-wide texture serial; the per-draw descriptor-set bind is gone (draw data is addressed by a
-  push constant/SSBO slot).
-- **Debug**: 50-65 FPS (15-20 ms/frame), scene record 14-20 ms, scene-fence wait 0.2-0.3 ms.
-  **RelWithDebInfo**: 49-65 FPS, similar scene record. The GPU is idle.
+- Draws use per-texture descriptor sets (each set is written before it is bound) keyed by the
+  process-wide texture serial; a texture-array/push-constant experiment was reverted because
+  validation found a bound-descriptor-set update and an SSBO `NonWritable` violation.
+- **Debug / RelWithDebInfo**: roughly 45-60 FPS (16-22 ms/frame), scene record 15-22 ms,
+  scene-fence wait 0.2-0.3 ms. The GPU is idle.
 - With `VKREND_UNCAPPED=1` the swapchain selects `VK_PRESENT_MODE_IMMEDIATE_KHR` (present mode 0);
   a 224-draw scene measured 40-46 FPS, so the remaining limit is CPU scene recording, not vsync.
 - The remaining cost is the scene record itself: 140-250 draw groups at roughly 0.1 ms each
