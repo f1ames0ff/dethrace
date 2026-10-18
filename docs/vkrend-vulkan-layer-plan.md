@@ -5,6 +5,24 @@ is rewritten. The BRender DDI stays the producer API for compatibility, but the 
 a deferred, GPU-driven-friendly renderer with an explicit frame graph. The legacy renderer rewrite
 plan is in `docs/vkrend-renderer-rewrite-plan.md`.
 
+## Review corrections (2026-10-18)
+
+This document's A0-A8 sequence is subordinate to the D0-D4 gates in `plan.md`. Corrections from the
+deep-reasoning review:
+
+- Measure first (D0). A7 is a checkpoint, not the 200 FPS gate; the final gate is after B8.
+- A3's "one descriptor set" is unsafe with 2-3 frames in flight. Use per-slot sets, a timeline wait
+  before the pre-pass and slot-keyed deferred destruction; keep the existing 512 single-sampler
+  sets/plain indexed draws until D0/D2 measures a win.
+- Add a game-frame boundary independent of `doubleBuffer`; skipped swaps must not accumulate records.
+- Add feature negotiation, a fail-loud uncapped mode, `image_count >= frames + 1`, device-fault and
+  slot-aware recovery.
+- The 512-slot array is optional; `VK_EXT_descriptor_indexing`, indirect-count, frame graph and
+  3 FIF are D4 items, not prerequisites.
+- No multithreading. Single-thread CPU efficiency is the execution model.
+- Visual capture, a real acceptance metric and software/OpenGL/reccmp/Linux/validation/recovery
+  gates are prerequisites for sign-off, not later polish.
+
 ## Constraints
 
 - Windows first; Linux must keep compiling.
@@ -67,6 +85,9 @@ vk_swapchain / present
 
 ## Descriptor and binding model
 
+This is the D4 target. D0-D3 keep the validated 512 per-texture sets and plain indexed draws; do not
+implement bindless or per-slot sets before a D0/D2 measurement justifies it.
+
 - One bindless descriptor set per frame slot: a combined-image-sampler array for textures, one
   storage buffer for per-draw data, immutable samplers.
 - `VK_EXT_descriptor_indexing` is used for non-uniform texture indices. If the extension is
@@ -115,6 +136,9 @@ owns the sub-rect layout.
 
 ## Synchronization and frames in flight
 
+This is D4. D0-D3 keep one frame in flight and the existing fences. 2-3 FIF is allowed only after
+the feature table, `image_count >= frames + 1`, fail-loud uncapped and slot-aware recovery exist.
+
 - 2-3 frame slots, each with command buffer, timeline semaphore, descriptor arena, staging ring,
   draw-data buffer, overlay image.
 - No synchronous scene-fence wait on the CPU. The scene submit signals a timeline semaphore; the
@@ -147,15 +171,15 @@ owns the sub-rect layout.
 
 | ID | Deliverable | Acceptance |
 | --- | --- | --- |
-| A0 | Feature flags, GPU timestamps, CSV, benchmark harness; no behavior change | Same FPS as today; validation clean |
-| A1 | Deferred scene record; all DDI calls append records; one submit at frame end | Same visuals; validation clean; no regression |
-| A2 | Static/dynamic arenas + indirect draw commands | Draw submissions < 20/frame; scene record measurably lower |
-| A3 | Bindless textures + pre-pass; one descriptor set | Validation clean; no bound-set updates; textures correct |
-| A4 | Frame graph, explicit main target, mirror/wreck sub-rect composite | Map/mirror/summary correct; pass count reduced |
-| A5 | 2-3 frames in flight, timeline semaphores, dynamic rendering | No CPU scene-fence wait; p99 improves |
-| A6 | UI pass/dirty rects, 16-bit dim, no CPU depth fill | Passes <= 5 in the race; visuals match |
-| A7 | Performance acceptance | Mean <= 5 ms in the authorized optimized build |
-| A8 | Hardening, docs, Linux, recovery/device-fault | Validation clean; parity doc updated |
+| A0 | Feature flags, GPU timestamps, CSV, D0b capture/determinism harness; no behavior change | Baseline CSV, refs, validation loaded |
+| A1 | Deferred scene record, frame boundary, one submit; descriptor immutability | Fade/skipped-swap A/B; no accumulation |
+| A2 | Static/dynamic arenas, per-instance/indexed draws, clip planes, order buckets | Measured saving; <40 draws |
+| A3 | Optional D4: bindless/pre-pass with per-slot sets; otherwise keep 512 sets | Validation clean; churn race |
+| A4 | Frame graph executor, explicit main target, mirror/wreck sub-rect composite | Map/mirror/summary parity |
+| A5 | Optional D4: 2-3 FIF + timeline, after image-count/features/slot recovery | No scene wait; forced-loss |
+| A6 | Dirty-rect overlay, 16-bit dim, no CPU depth fill; UI pass is B4 | Measured passes; visuals match |
+| A7 | Checkpoint: mean <= 5 ms; not the final gate | Baseline + D0 bucket named |
+| A8 | Hardening, device fault, forced loss, Linux, docs | Validation loaded; recovery <=10 s |
 
 ## Risks
 

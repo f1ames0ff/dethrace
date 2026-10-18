@@ -17,6 +17,24 @@ migrated onto it.
 
 The asset formats, gameplay, physics, race logic and reccmp compatibility are **not** in scope.
 
+## Review corrections (2026-10-18)
+
+- Extract at the `BrZbSceneRenderAdd`/DDI boundary, not by walking the BRender scene: the track
+  culls its own columns and lollipops, and the game controls pass order. Preserve order-table
+  semantics: opaque bucket plus blended submission-order bucket.
+- Clip planes are a missing raster feature, not a batching limit; implement per-draw clip/discard
+  before batching shadows.
+- Split shadow generation from submission; no shared-camera hither mutation; batch only where
+  clip state allows.
+- B4 covers the full HUD/map/cockpit/pratcam/flic scope, map underlay and world viewport; a glyph
+  atlas is later. B5 needs a global tint/CLUT post-process and exact dim, not only an R8 LUT.
+- B6 is single-threaded state/material/batch reduction. No job system or worker threads.
+- `VKREND_LEGACY_PATH` is a game-side producer selector, not a driver flag; gate game-side changes
+  by capability/vkrend mode so software/OpenGL keep the legacy path.
+- Damaged-car geometry frequency and the mirror second traversal must be measured in D0, not
+  assumed per-frame. Add reference capture, seed/render cap, tick/replay hash and the full parity
+  screen set before claiming parity.
+
 ## End-state architecture
 
 ```text
@@ -32,7 +50,7 @@ frame builder
   explicit targets, sub-rects, transient resources
         |
         v
-Vulkan backend (bindless, indirect, 2-3 frames in flight)
+Vulkan backend (D0-D3: validated 512 sets/plain draws; D4 optional bindless/indirect/FIF)
         |
         v
 present (FIFO default, uncapped opt-in)
@@ -59,16 +77,18 @@ present (FIFO default, uncapped opt-in)
 ## Migration stages
 
 ### B0 - Baseline and parity harness
-- Freeze the software-renderer screenshots for forward/mirror/cockpit/map/summary at fixed
-  positions; keep the validation and 10-minute race gates.
-- Add a CPU/GPU profile of the current `RenderAFrame`: traversal, state, geometry, Vulkan calls, 2D.
-- Acceptance: repeatable parity set and profile.
+- Reuse D0b: 11 committed references (forward, mirror, cockpit, map, summary/wreck, pratcam, fade,
+  dim, gauges/powerups, frontend, damaged/repair), the 24-bit capture path and comparator tolerance.
+- Keep the validation and 10-minute race gates; do not duplicate the capture implementation.
+- Acceptance: repeatable parity set; no parity claim before D0b passes.
 
 ### B1 - Render proxy extraction
-- Add an extraction layer that walks the BRender scene and produces a flat proxy list with bounds,
-  transform, material and mesh ranges. No Vulkan changes; the backend can still draw the old way.
-- Add frustum culling and a stable sort key (pipeline, material, texture, depth).
-- Acceptance: proxy list matches the old visible set; no visual change.
+- Produce a flat proxy list at the `BrZbSceneRenderAdd`/DDI boundary, not by walking the BRender
+  scene: the track culls its own columns/lollipops and the game controls pass order. Capture bounds,
+  transform, material and mesh ranges in the shared record schema from D1.
+- Add frustum culling and an opaque sort key plus a blended submission-order bucket; preserve the
+  order-table semantics. No Vulkan changes; the backend can still draw the old way.
+- Acceptance: proxy list matches the old visible set; no visual change; blended surfaces correct.
 
 ### B2 - Frame builder / pass graph
 - Replace `RenderAFrame`'s pass orchestration with a frame builder that emits the pass list and
@@ -103,7 +123,8 @@ present (FIFO default, uncapped opt-in)
 ### B7 - Remove the legacy render path from vkrend
 - The vkrend hot path no longer calls `BrZbSceneRenderBegin/End` per model/group; it consumes proxies
   and the frame builder. BRender remains for asset loading, software and OpenGL.
-- Keep a compatibility switch (`VKREND_LEGACY_PATH=1`) for A/B until parity is proven.
+- Keep the game-side producer selector created in D1 (`VKREND_LEGACY_PATH`) for A/B until parity is
+  proven; it selects the old `RenderAFrame` producer or the B2 frame builder, not a second driver.
 - Acceptance: 10-minute race, parity, no regression in software/OpenGL.
 
 ### B8 - Parity, performance, documentation
@@ -113,10 +134,10 @@ present (FIFO default, uncapped opt-in)
 
 ## Dependencies
 
-- B1 can start before the Vulkan layer is finished.
-- B2 depends on A4 (frame graph/main target/composite).
+- B1 starts after D1's record schema/frame boundary; it does not start before the layer boundary.
+- B2 depends on D3 (frame graph/main target/composite).
 - B3/B4 can be staged behind flags and A/B tested.
-- B5 depends on A3 (bindless/palette).
+- B5 uses the current texture path; bindless/palette LUT are optional D4 items, not dependencies.
 - B6 depends on B1/B2 and the proxy list being immutable during recording; it is single-threaded.
 
 ## What stays
