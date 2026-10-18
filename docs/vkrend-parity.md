@@ -1,6 +1,11 @@
 # vkrend parity checklist
 
-Living document: what the `vkrend` BRender driver renders today, compared with the reference.
+**Historical document.** This checklist describes the legacy `vkrend` driver. It remains useful
+as a record of known visual gaps, but it is not the current renderer plan. The new renderer is
+documented in `docs/render-vk-architecture.md`.
+
+Living document for the legacy driver: what the `vkrend` BRender driver renders today, compared
+with the reference.
 The parity target is the software renderer (`softrend`) - that is the frame the game shows by
 default; `glrend` (the OpenGL driver) is the porting reference for DDI behaviour only, not a
 visual target.

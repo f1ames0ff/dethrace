@@ -119,8 +119,8 @@ smoke executables need an SDL platform. SDL3 support requires SDL 3.2.0 or newer
 - 90-frame smoke with `--validate --resize-test`: 640x480 -> 800x600 -> 640x480, zero validation
   warnings/errors, exit 0.
 - 120-frame smoke with `--present immediate --validate`: IMMEDIATE selected, zero validation
-  warnings/errors, mean CPU 0.137 ms for clear + present. This is a skeleton measurement, not a
-  renderer or 200 FPS result.
+  warnings/errors, mean CPU about 0.2 ms for clear + present. This is a skeleton measurement, not
+  a renderer or 200 FPS result.
 - The smoke links SDL2 and loads Vulkan at runtime; the renderer link line has no BRender target
   and no Vulkan import library.
 - `rg "brender|br_actor|br_model|br_material|br_pixelmap|Br[A-Z]" src/render_vk` returns nothing.

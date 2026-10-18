@@ -37,8 +37,8 @@ renderer. Rewriting inside the DDI would preserve the legacy decomposition.
 
 - **Legacy, frozen:** `lib/BRender-v1.3.2` renderer/DDI, `drivers/vkrend`, the software/OpenGL
   drivers and the game's `RenderAFrame`. Critical fixes only; no new architecture.
-- **New runtime:** `src/render_vk/` (name provisional), a clean Vulkan renderer. Its public API
-  has no BRender headers, types or callbacks.
+- **New runtime:** `src/render_vk/`, a clean Vulkan renderer. Its public API has no BRender
+  headers, types or callbacks.
 - **Game bridge:** `src/DETHRACE` code extracts a neutral scene from game state/assets and calls
   the new render API. The bridge may use BRender at load/proxy-extraction time; the renderer
   never does.
@@ -59,19 +59,20 @@ game state / assets
   -> render_api
   -> render_vk
        context/device/swapchain
-       frame graph (shadow, world, mirror, UI, composite)
-       bindless descriptors, indirect draws, 2-3 frames in flight
+       explicit pass list (shadow, world, mirror, UI, composite)
+       static/dynamic arenas, descriptor arrays, one frame in flight
+       bindless/indirect/frame graph/2-3 FIF only after measurement
        resource manager (static/dynamic arenas, staging ring, pipelines)
   -> present (FIFO default, IMMEDIATE opt-in)
 ```
 
 - Renderer-owned scene: flat render proxies, frustum culling, opaque/blended buckets, stable
   sort keys; no BRender actor traversal in the render loop.
-- Static geometry in a global vertex/index arena; dynamic geometry in per-frame rings; indirect
-  draws; texture slots resolved in a pre-pass; descriptor sets written only before binding.
+- Static geometry in a global vertex/index arena; dynamic geometry in per-frame rings; descriptor
+  arrays first; indirect draws only if a frame-level profile justifies them.
 - Explicit main target; mirror/wreck as sub-rect composites; UI as a separate pass.
-- 2-3 frame slots with timeline semaphores; no synchronous scene-fence wait; slot-keyed deferred
-  destruction and slot-aware recovery.
+- One frame in flight first; 2-3 frame slots with timeline semaphores only after the simple model
+  is measured; slot-keyed deferred destruction and slot-aware recovery.
 - Single-threaded. No job system, worker threads or secondary command buffers.
 - Debug path: validation, GPU timestamps, per-pass CSV, device-fault reporting.
 
@@ -87,8 +88,8 @@ Evidence:
 - `dethrace` builds with the same configuration; the renderer is not linked into the game yet.
 - 90-frame validation smoke with resize (640x480 -> 800x600 -> 640x480): zero validation
   warnings/errors, exit 0.
-- 120-frame IMMEDIATE validation smoke: zero validation warnings/errors; mean CPU 0.137 ms for
-  clear + present. This is a skeleton number, not a renderer or 200 FPS result.
+- 120-frame IMMEDIATE validation smoke: zero validation warnings/errors; mean CPU about 0.2 ms
+  for clear + present. This is a skeleton number, not a renderer or 200 FPS result.
 - No BRender include or symbol in `src/render_vk`; no Vulkan loader link; no game code changes.
 - `tools/compare_vkrend_frames.ps1` 24-bit stride fixed for 640x480; references still need to be
   captured and committed.
