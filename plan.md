@@ -88,6 +88,8 @@ Evidence:
 - `dethrace` builds with the same configuration; the renderer is not linked into the game yet.
 - 90-frame validation smoke with resize (640x480 -> 800x600 -> 640x480): zero validation
   warnings/errors, exit 0.
+- 90-frame validation smoke with a forced acquire-out-of-date resize: zero validation
+  warnings/errors, exit 0; the frame fence remains signaled across the out-of-date path.
 - 120-frame IMMEDIATE validation smoke: zero validation warnings/errors; mean CPU about 0.2 ms
   for clear + present. This is a skeleton number, not a renderer or 200 FPS result.
 - No BRender include or symbol in `src/render_vk`; no Vulkan loader link; no game code changes.

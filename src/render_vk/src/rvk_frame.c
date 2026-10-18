@@ -35,23 +35,9 @@ RvkResult rvk_begin_frame(RvkDevice *device) {
         return rvk_check(device, result, "vkWaitForFences");
     }
 
-    result = device->vk.AcquireNextImageKHR(device->device, device->swapchain, UINT64_MAX, device->image_available, VK_NULL_HANDLE, &device->image_index);
-    if (result == VK_ERROR_OUT_OF_DATE_KHR) {
-        device->pending_resize = 1;
-        device->pending_width = device->extent.width;
-        device->pending_height = device->extent.height;
-        return RVK_ERROR_OUT_OF_DATE;
-    }
-    if (result == VK_SUBOPTIMAL_KHR) {
-        device->pending_resize = 1;
-        device->pending_width = device->extent.width;
-        device->pending_height = device->extent.height;
-    } else if (result != VK_SUCCESS) {
-        return rvk_check(device, result, "vkAcquireNextImageKHR");
-    }
-
     result = device->vk.ResetCommandBuffer(device->command_buffer, 0);
     if (result != VK_SUCCESS) {
+        device->device_lost = 1;
         return rvk_check(device, result, "vkResetCommandBuffer");
     }
     {
@@ -62,8 +48,26 @@ RvkResult rvk_begin_frame(RvkDevice *device) {
         begin_info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
         result = device->vk.BeginCommandBuffer(device->command_buffer, &begin_info);
         if (result != VK_SUCCESS) {
+            device->device_lost = 1;
             return rvk_check(device, result, "vkBeginCommandBuffer");
         }
+    }
+
+    result = device->vk.AcquireNextImageKHR(device->device, device->swapchain, UINT64_MAX, device->image_available, VK_NULL_HANDLE, &device->image_index);
+    if (result == VK_ERROR_OUT_OF_DATE_KHR) {
+        device->vk.EndCommandBuffer(device->command_buffer);
+        device->pending_resize = 1;
+        device->pending_width = device->extent.width;
+        device->pending_height = device->extent.height;
+        return RVK_ERROR_OUT_OF_DATE;
+    }
+    if (result == VK_SUBOPTIMAL_KHR) {
+        device->pending_resize = 1;
+        device->pending_width = device->extent.width;
+        device->pending_height = device->extent.height;
+    } else if (result != VK_SUCCESS) {
+        device->vk.EndCommandBuffer(device->command_buffer);
+        return rvk_check(device, result, "vkAcquireNextImageKHR");
     }
 
     device->frame_start_ticks = start_ticks;
@@ -136,6 +140,7 @@ RvkResult rvk_end_frame(RvkDevice *device) {
 
     result = device->vk.EndCommandBuffer(device->command_buffer);
     if (result != VK_SUCCESS) {
+        device->device_lost = 1;
         device->frame_open = 0;
         return rvk_check(device, result, "vkEndCommandBuffer");
     }

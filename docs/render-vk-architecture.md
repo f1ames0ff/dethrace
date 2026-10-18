@@ -85,9 +85,10 @@ device functions afterwards. `VK_NO_PROTOTYPES` keeps the loader out of the link
 
 ### N0 frame model
 
-- Exactly one frame in flight. `rvk_begin_frame` waits the frame fence, acquires an image, resets
-  and begins the command buffer. `rvk_end_frame` ends it, submits with the acquire semaphore,
-  presents, and measures CPU time.
+- Exactly one frame in flight. `rvk_begin_frame` waits the frame fence, resets and begins the
+  command buffer, then acquires an image. `rvk_end_frame` ends the command buffer, resets the
+  frame fence, submits with the acquire semaphore, presents, and measures CPU time. The fence is
+  never reset unless a submission follows; an out-of-date acquire leaves it signaled.
 - One render-finished semaphore per swapchain image. This avoids reusing a binary semaphore while
   the presentation engine still holds it; validation flagged the single-semaphore version.
 - FIFO is the default. IMMEDIATE is opt-in and fails loudly if the surface does not offer it.
@@ -118,6 +119,8 @@ smoke executables need an SDL platform. SDL3 support requires SDL 3.2.0 or newer
   the game yet.
 - 90-frame smoke with `--validate --resize-test`: 640x480 -> 800x600 -> 640x480, zero validation
   warnings/errors, exit 0.
+- 90-frame smoke with `--validate --acquire-ood-test`: window resized without notifying the
+  renderer first, out-of-date acquire path exercised, zero validation warnings/errors, exit 0.
 - 120-frame smoke with `--present immediate --validate`: IMMEDIATE selected, zero validation
   warnings/errors, mean CPU about 0.2 ms for clear + present. This is a skeleton measurement, not
   a renderer or 200 FPS result.
