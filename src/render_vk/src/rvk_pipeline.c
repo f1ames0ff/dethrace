@@ -290,6 +290,120 @@ static RvkResult rvk_create_overlay_pipeline(RvkDevice *device, VkRenderPass ren
     return RVK_OK;
 }
 
+static RvkResult rvk_create_background_pipeline(RvkDevice *device) {
+    VkShaderModule vertex_module = VK_NULL_HANDLE;
+    VkShaderModule fragment_module = VK_NULL_HANDLE;
+    VkPipelineShaderStageCreateInfo stages[2];
+    VkPipelineVertexInputStateCreateInfo vertex_input;
+    VkPipelineInputAssemblyStateCreateInfo input_assembly;
+    VkPipelineViewportStateCreateInfo viewport_state;
+    VkPipelineRasterizationStateCreateInfo rasterization;
+    VkPipelineMultisampleStateCreateInfo multisample;
+    VkPipelineDepthStencilStateCreateInfo depth_stencil;
+    VkPipelineColorBlendAttachmentState color_attachment;
+    VkPipelineColorBlendStateCreateInfo color_blend;
+    VkDynamicState dynamic_states[2];
+    VkPipelineDynamicStateCreateInfo dynamic_state;
+    VkPipelineLayoutCreateInfo layout_info;
+    VkGraphicsPipelineCreateInfo pipeline_info;
+    VkResult result;
+
+    result = rvk_create_shader_module(device, rvk_background_vert_spv, sizeof(rvk_background_vert_spv), &vertex_module);
+    if (result != VK_SUCCESS) {
+        return rvk_check(device, result, "create background vertex shader");
+    }
+    result = rvk_create_shader_module(device, rvk_background_frag_spv, sizeof(rvk_background_frag_spv), &fragment_module);
+    if (result != VK_SUCCESS) {
+        device->vk.DestroyShaderModule(device->device, vertex_module, NULL);
+        return rvk_check(device, result, "create background fragment shader");
+    }
+
+    memset(stages, 0, sizeof(stages));
+    stages[0].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    stages[0].stage = VK_SHADER_STAGE_VERTEX_BIT;
+    stages[0].module = vertex_module;
+    stages[0].pName = "main";
+    stages[1].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    stages[1].stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+    stages[1].module = fragment_module;
+    stages[1].pName = "main";
+
+    memset(&vertex_input, 0, sizeof(vertex_input));
+    vertex_input.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+    memset(&input_assembly, 0, sizeof(input_assembly));
+    input_assembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
+    input_assembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+    memset(&viewport_state, 0, sizeof(viewport_state));
+    viewport_state.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
+    viewport_state.viewportCount = 1;
+    viewport_state.scissorCount = 1;
+    memset(&rasterization, 0, sizeof(rasterization));
+    rasterization.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+    rasterization.polygonMode = VK_POLYGON_MODE_FILL;
+    rasterization.cullMode = VK_CULL_MODE_NONE;
+    rasterization.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
+    rasterization.lineWidth = 1.0f;
+    memset(&multisample, 0, sizeof(multisample));
+    multisample.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
+    multisample.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+    memset(&depth_stencil, 0, sizeof(depth_stencil));
+    depth_stencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+    depth_stencil.depthTestEnable = VK_FALSE;
+    depth_stencil.depthWriteEnable = VK_FALSE;
+    depth_stencil.depthCompareOp = VK_COMPARE_OP_ALWAYS;
+    depth_stencil.depthBoundsTestEnable = VK_FALSE;
+    depth_stencil.stencilTestEnable = VK_FALSE;
+
+    memset(&color_attachment, 0, sizeof(color_attachment));
+    color_attachment.blendEnable = VK_FALSE;
+    color_attachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+    memset(&color_blend, 0, sizeof(color_blend));
+    color_blend.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+    color_blend.attachmentCount = 1;
+    color_blend.pAttachments = &color_attachment;
+
+    dynamic_states[0] = VK_DYNAMIC_STATE_VIEWPORT;
+    dynamic_states[1] = VK_DYNAMIC_STATE_SCISSOR;
+    memset(&dynamic_state, 0, sizeof(dynamic_state));
+    dynamic_state.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
+    dynamic_state.dynamicStateCount = 2;
+    dynamic_state.pDynamicStates = dynamic_states;
+
+    memset(&layout_info, 0, sizeof(layout_info));
+    layout_info.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+    layout_info.setLayoutCount = 1;
+    layout_info.pSetLayouts = &device->texture_set_layout;
+    result = device->vk.CreatePipelineLayout(device->device, &layout_info, NULL, &device->background_pipeline_layout);
+    if (result != VK_SUCCESS) {
+        device->vk.DestroyShaderModule(device->device, fragment_module, NULL);
+        device->vk.DestroyShaderModule(device->device, vertex_module, NULL);
+        return rvk_check(device, result, "create background pipeline layout");
+    }
+
+    memset(&pipeline_info, 0, sizeof(pipeline_info));
+    pipeline_info.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+    pipeline_info.stageCount = 2;
+    pipeline_info.pStages = stages;
+    pipeline_info.pVertexInputState = &vertex_input;
+    pipeline_info.pInputAssemblyState = &input_assembly;
+    pipeline_info.pViewportState = &viewport_state;
+    pipeline_info.pRasterizationState = &rasterization;
+    pipeline_info.pMultisampleState = &multisample;
+    pipeline_info.pDepthStencilState = &depth_stencil;
+    pipeline_info.pColorBlendState = &color_blend;
+    pipeline_info.pDynamicState = &dynamic_state;
+    pipeline_info.layout = device->background_pipeline_layout;
+    pipeline_info.renderPass = device->world_render_pass;
+    pipeline_info.subpass = 0;
+    result = device->vk.CreateGraphicsPipelines(device->device, VK_NULL_HANDLE, 1, &pipeline_info, NULL, &device->background_pipeline);
+    device->vk.DestroyShaderModule(device->device, fragment_module, NULL);
+    device->vk.DestroyShaderModule(device->device, vertex_module, NULL);
+    if (result != VK_SUCCESS) {
+        return rvk_check(device, result, "create background pipeline");
+    }
+    return RVK_OK;
+}
+
 RvkResult rvk_create_pipelines(RvkDevice *device) {
     RvkResult result;
 
@@ -298,6 +412,10 @@ RvkResult rvk_create_pipelines(RvkDevice *device) {
         return result;
     }
     result = rvk_create_world_pipeline(device, VK_FALSE, &device->world_sky_pipeline);
+    if (result != RVK_OK) {
+        return result;
+    }
+    result = rvk_create_background_pipeline(device);
     if (result != RVK_OK) {
         return result;
     }
@@ -324,6 +442,12 @@ void rvk_destroy_pipelines(RvkDevice *device) {
     if (device->world_sky_pipeline != VK_NULL_HANDLE && device->vk.DestroyPipeline != NULL) {
         device->vk.DestroyPipeline(device->device, device->world_sky_pipeline, NULL);
     }
+    if (device->background_pipeline != VK_NULL_HANDLE && device->vk.DestroyPipeline != NULL) {
+        device->vk.DestroyPipeline(device->device, device->background_pipeline, NULL);
+    }
+    if (device->background_pipeline_layout != VK_NULL_HANDLE && device->vk.DestroyPipelineLayout != NULL) {
+        device->vk.DestroyPipelineLayout(device->device, device->background_pipeline_layout, NULL);
+    }
     if (device->overlay_pipeline_layout != VK_NULL_HANDLE && device->vk.DestroyPipelineLayout != NULL) {
         device->vk.DestroyPipelineLayout(device->device, device->overlay_pipeline_layout, NULL);
     }
@@ -334,6 +458,8 @@ void rvk_destroy_pipelines(RvkDevice *device) {
     device->overlay_load_pipeline = VK_NULL_HANDLE;
     device->world_pipeline = VK_NULL_HANDLE;
     device->world_sky_pipeline = VK_NULL_HANDLE;
+    device->background_pipeline = VK_NULL_HANDLE;
+    device->background_pipeline_layout = VK_NULL_HANDLE;
     device->overlay_pipeline_layout = VK_NULL_HANDLE;
     device->world_pipeline_layout = VK_NULL_HANDLE;
 }

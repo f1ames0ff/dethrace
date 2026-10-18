@@ -129,9 +129,9 @@ parts (such as `FIN.DAT`) out of the frame. The world shader applies colour keyi
 materials that request it (never to the horizon), blends by source alpha, and the 2D overlay uses
 palette index 0 as its transparent key while keeping index 255 white highlights opaque. The first race
 scene submits about 3408 draws, 38638 vertices and 65949 indices because the bridge emits one draw
-per material run with no batching. Four fixed-yaw horizon copies follow the camera position and
-cover the full circle; they are submitted before the world with depth testing behind the car and
-track. The new path scales the camera far plane to twenty times the configured yon
+per material run with no batching. A full-screen background pass samples the track horizon texture
+before the world with depth disabled, so background coverage does not depend on scene culling or
+the far plane. The new path scales the camera far plane to twenty times the configured yon
 (`RVK_FAR_MULTIPLIER` overrides it), submits the pedestrian lollipop queue explicitly, invalidates
 its texture cache on track load/unload, and maps the legacy background-fill decision to the
 Vulkan clear colour.

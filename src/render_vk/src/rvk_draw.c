@@ -24,7 +24,7 @@ RvkResult rvk_draw_world(RvkDevice *device, const float view_proj[16],
     const RvkVertex *vertices, uint32_t vertex_count,
     const uint32_t *indices, uint32_t index_count,
     const RvkWorldDraw *draws, uint32_t draw_count,
-    const float clear_color[4]) {
+    const RvkBackgroundDraw *background, const float clear_color[4]) {
     VkDeviceSize vertex_bytes;
     VkDeviceSize index_bytes;
     VkRenderPassBeginInfo begin_info;
@@ -83,6 +83,16 @@ RvkResult rvk_draw_world(RvkDevice *device, const float view_proj[16],
     scissor.extent = device->extent;
     device->vk.CmdSetViewport(device->command_buffer, 0, 1, &viewport);
     device->vk.CmdSetScissor(device->command_buffer, 0, 1, &scissor);
+    if (background != NULL && background->texture != 0 && device->background_pipeline != VK_NULL_HANDLE) {
+        VkDescriptorSet background_texture = rvk_texture_descriptor(device, background->texture);
+
+        if (background_texture != VK_NULL_HANDLE) {
+            device->vk.CmdBindPipeline(device->command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, device->background_pipeline);
+            device->vk.CmdBindDescriptorSets(device->command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                device->background_pipeline_layout, 0, 1, &background_texture, 0, NULL);
+            device->vk.CmdDraw(device->command_buffer, 3, 1, 0, 0);
+        }
+    }
     device->vk.CmdBindDescriptorSets(device->command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
         device->world_pipeline_layout, 0, 1, &device->ubo_descriptor, 0, NULL);
     device->vk.CmdBindVertexBuffers(device->command_buffer, 0, 1, &device->world_vertex_buffer, &vertex_offset);

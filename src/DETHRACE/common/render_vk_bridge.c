@@ -53,6 +53,8 @@ static int gRenderVk_scene_ready;
 static br_actor *gRenderVk_camera;
 static br_angle gRenderVk_sky_base_yaw;
 static int gRenderVk_sky_base_yaw_valid;
+static RvkBackgroundDraw gRenderVk_background;
+static int gRenderVk_background_valid;
 
 static GameRenderTextureEntry *gRenderVk_textures;
 static uint32_t gRenderVk_texture_count;
@@ -1004,6 +1006,13 @@ void GameRender_BeginScene(br_actor *camera) {
         }
         camera_data->yon_z = (br_scalar)(yon_base * multiplier);
     }
+    memset(&gRenderVk_background, 0, sizeof(gRenderVk_background));
+    gRenderVk_background_valid = 0;
+    if (gProgram_state.current_depth_effect.sky_texture != NULL
+        && (gLast_camera_special_volume == NULL || gLast_camera_special_volume->sky_col < 0)) {
+        gRenderVk_background.texture = GameRender_GetTexture(gProgram_state.current_depth_effect.sky_texture);
+        gRenderVk_background_valid = gRenderVk_background.texture != 0;
+    }
     screen = gRender_screen;
     if (screen != NULL && screen->width != 0 && screen->height != 0) {
         origin_x = (br_scalar)(screen->origin_x - screen->width / 2) / (br_scalar)(screen->width / 2);
@@ -1054,18 +1063,6 @@ static int GameRender_PrepareSky(br_actor *camera) {
 void GameRender_AddUniverse(br_actor *universe) {
     if (!GameRender_IsActive() || universe == NULL || universe == gDont_render_actor) {
         return;
-    }
-    if (GameRender_PrepareSky(gRenderVk_camera)) {
-        int i;
-        gRenderVk_draw_flags = RVK_DRAW_FLAG_SKY;
-        for (i = 0; i < 4; i++) {
-            BrMatrix34RotateY(&gForward_sky_actor->t.t.mat,
-                gRenderVk_sky_base_yaw + (br_angle)i * BR_ANGLE_DEG(90));
-            BrVector3Copy(&gForward_sky_actor->t.t.translate.t, (br_vector3 *)gCamera_to_world.m[3]);
-            GameRender_AddActor(gForward_sky_actor, universe, NULL, gHorizon_material, BR_RSTYLE_FACES);
-        }
-        gForward_sky_actor->render_style = BR_RSTYLE_NONE;
-        gRenderVk_draw_flags = 0;
     }
     GameRender_AddActor(universe, universe, NULL, NULL, BR_RSTYLE_DEFAULT);
     {
@@ -1179,7 +1176,7 @@ void GameRender_Swap(br_pixelmap *back) {
 
     device_lost = 0;
     if (gRenderVk_scene_ready && gRenderVk_vertex_count > 0 && gRenderVk_index_count > 0 && gRenderVk_draw_count > 0) {
-        result = rvk_draw_world(gRenderVk_device, gRenderVk_view_proj, gRenderVk_vertices, gRenderVk_vertex_count, gRenderVk_indices, gRenderVk_index_count, gRenderVk_draws, gRenderVk_draw_count, clear_color);
+        result = rvk_draw_world(gRenderVk_device, gRenderVk_view_proj, gRenderVk_vertices, gRenderVk_vertex_count, gRenderVk_indices, gRenderVk_index_count, gRenderVk_draws, gRenderVk_draw_count, gRenderVk_background_valid ? &gRenderVk_background : NULL, clear_color);
         if (result == RVK_ERROR_DEVICE_LOST) {
             device_lost = 1;
             gRenderVk_active = 0;

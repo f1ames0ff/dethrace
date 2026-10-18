@@ -173,8 +173,10 @@ struct RvkDevice {
     VkDescriptorSet ubo_descriptor;
     VkPipelineLayout world_pipeline_layout;
     VkPipelineLayout overlay_pipeline_layout;
+    VkPipelineLayout background_pipeline_layout;
     VkPipeline world_pipeline;
     VkPipeline world_sky_pipeline;
+    VkPipeline background_pipeline;
     VkPipeline overlay_load_pipeline;
     VkPipeline overlay_clear_pipeline;
     VkRenderPass world_render_pass;

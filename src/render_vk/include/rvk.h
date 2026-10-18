@@ -49,6 +49,10 @@ typedef struct RvkWorldDraw {
 #define RVK_DRAW_FLAG_NO_DEPTH 2u
 #define RVK_DRAW_FLAG_SKY 4u
 
+typedef struct RvkBackgroundDraw {
+    RvkTexture texture;
+} RvkBackgroundDraw;
+
 typedef void (*RvkLogFn)(void *user, int level, const char *message);
 typedef void (*RvkProc)(void);
 typedef RvkProc (*RvkGetInstanceProcAddrFn)(void);
@@ -106,7 +110,7 @@ RvkResult rvk_draw_world(RvkDevice *device, const float view_proj[16],
     const RvkVertex *vertices, uint32_t vertex_count,
     const uint32_t *indices, uint32_t index_count,
     const RvkWorldDraw *draws, uint32_t draw_count,
-    const float clear_color[4]);
+    const RvkBackgroundDraw *background, const float clear_color[4]);
 RvkResult rvk_draw_overlay(RvkDevice *device, const uint32_t *pixels, uint32_t width, uint32_t height);
 RvkResult rvk_end_frame(RvkDevice *device);
 void rvk_wait_idle(RvkDevice *device);

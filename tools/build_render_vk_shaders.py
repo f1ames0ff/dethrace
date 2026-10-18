@@ -10,6 +10,8 @@ from pathlib import Path
 SHADERS = (
     ("world.vert", "rvk_world_vert_spv"),
     ("world.frag", "rvk_world_frag_spv"),
+    ("background.vert", "rvk_background_vert_spv"),
+    ("background.frag", "rvk_background_frag_spv"),
     ("overlay.vert", "rvk_overlay_vert_spv"),
     ("overlay.frag", "rvk_overlay_frag_spv"),
 )

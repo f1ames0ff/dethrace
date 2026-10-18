@@ -293,7 +293,7 @@ int rvk_smoke_run(int argc, char **argv, const RvkSmokeHost *host) {
             float clear_color[4] = { 0.05f, 0.10f, 0.16f, 1.0f };
 
             if (!overlay_only) {
-                result = rvk_draw_world(device, test_view_proj, test_vertices, 3, test_indices, 3, &test_draw, 1, clear_color);
+                result = rvk_draw_world(device, test_view_proj, test_vertices, 3, test_indices, 3, &test_draw, 1, NULL, clear_color);
             } else {
                 result = RVK_OK;
             }
