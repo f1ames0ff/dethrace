@@ -83,16 +83,6 @@ RvkResult rvk_draw_world(RvkDevice *device, const float view_proj[16],
     scissor.extent = device->extent;
     device->vk.CmdSetViewport(device->command_buffer, 0, 1, &viewport);
     device->vk.CmdSetScissor(device->command_buffer, 0, 1, &scissor);
-    if (background != NULL && background->texture != 0 && device->background_pipeline != VK_NULL_HANDLE) {
-        VkDescriptorSet background_texture = rvk_texture_descriptor(device, background->texture);
-
-        if (background_texture != VK_NULL_HANDLE) {
-            device->vk.CmdBindPipeline(device->command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, device->background_pipeline);
-            device->vk.CmdBindDescriptorSets(device->command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                device->background_pipeline_layout, 0, 1, &background_texture, 0, NULL);
-            device->vk.CmdDraw(device->command_buffer, 3, 1, 0, 0);
-        }
-    }
     device->vk.CmdBindDescriptorSets(device->command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
         device->world_pipeline_layout, 0, 1, &device->ubo_descriptor, 0, NULL);
     device->vk.CmdBindVertexBuffers(device->command_buffer, 0, 1, &device->world_vertex_buffer, &vertex_offset);
@@ -125,6 +115,23 @@ RvkResult rvk_draw_world(RvkDevice *device, const float view_proj[16],
         device->vk.CmdPushConstants(device->command_buffer, device->world_pipeline_layout,
             VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(push), &push);
         device->vk.CmdDrawIndexed(device->command_buffer, draw->index_count, 1, draw->first_index, 0, 0);
+    }
+    if (background != NULL && background->texture != 0 && device->background_pipeline != VK_NULL_HANDLE) {
+        VkDescriptorSet background_texture = rvk_texture_descriptor(device, background->texture);
+
+        if (background_texture != VK_NULL_HANDLE) {
+            float background_push[4];
+            background_push[0] = background->src_x;
+            background_push[1] = background->top_y;
+            background_push[2] = background->texture_width;
+            background_push[3] = background->texture_height;
+            device->vk.CmdBindPipeline(device->command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, device->background_pipeline);
+            device->vk.CmdBindDescriptorSets(device->command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                device->background_pipeline_layout, 0, 1, &background_texture, 0, NULL);
+            device->vk.CmdPushConstants(device->command_buffer, device->background_pipeline_layout,
+                VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(background_push), background_push);
+            device->vk.CmdDraw(device->command_buffer, 3, 1, 0, 0);
+        }
     }
     device->vk.CmdEndRenderPass(device->command_buffer);
     device->world_rendered = 1;

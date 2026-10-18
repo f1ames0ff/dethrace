@@ -304,6 +304,7 @@ static RvkResult rvk_create_background_pipeline(RvkDevice *device) {
     VkPipelineColorBlendStateCreateInfo color_blend;
     VkDynamicState dynamic_states[2];
     VkPipelineDynamicStateCreateInfo dynamic_state;
+    VkPushConstantRange push_range;
     VkPipelineLayoutCreateInfo layout_info;
     VkGraphicsPipelineCreateInfo pipeline_info;
     VkResult result;
@@ -348,9 +349,9 @@ static RvkResult rvk_create_background_pipeline(RvkDevice *device) {
     multisample.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
     memset(&depth_stencil, 0, sizeof(depth_stencil));
     depth_stencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
-    depth_stencil.depthTestEnable = VK_FALSE;
+    depth_stencil.depthTestEnable = VK_TRUE;
     depth_stencil.depthWriteEnable = VK_FALSE;
-    depth_stencil.depthCompareOp = VK_COMPARE_OP_ALWAYS;
+    depth_stencil.depthCompareOp = VK_COMPARE_OP_EQUAL;
     depth_stencil.depthBoundsTestEnable = VK_FALSE;
     depth_stencil.stencilTestEnable = VK_FALSE;
 
@@ -369,10 +370,16 @@ static RvkResult rvk_create_background_pipeline(RvkDevice *device) {
     dynamic_state.dynamicStateCount = 2;
     dynamic_state.pDynamicStates = dynamic_states;
 
+    memset(&push_range, 0, sizeof(push_range));
+    push_range.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+    push_range.offset = 0;
+    push_range.size = sizeof(float) * 4;
     memset(&layout_info, 0, sizeof(layout_info));
     layout_info.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
     layout_info.setLayoutCount = 1;
     layout_info.pSetLayouts = &device->texture_set_layout;
+    layout_info.pushConstantRangeCount = 1;
+    layout_info.pPushConstantRanges = &push_range;
     result = device->vk.CreatePipelineLayout(device->device, &layout_info, NULL, &device->background_pipeline_layout);
     if (result != VK_SUCCESS) {
         device->vk.DestroyShaderModule(device->device, fragment_module, NULL);

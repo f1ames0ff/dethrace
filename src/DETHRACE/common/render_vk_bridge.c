@@ -1010,8 +1010,52 @@ void GameRender_BeginScene(br_actor *camera) {
     gRenderVk_background_valid = 0;
     if (gProgram_state.current_depth_effect.sky_texture != NULL
         && (gLast_camera_special_volume == NULL || gLast_camera_special_volume->sky_col < 0)) {
-        gRenderVk_background.texture = GameRender_GetTexture(gProgram_state.current_depth_effect.sky_texture);
-        gRenderVk_background_valid = gRenderVk_background.texture != 0;
+        br_pixelmap *sky = gProgram_state.current_depth_effect.sky_texture;
+        br_pixelmap *bg_screen = gRender_screen;
+        float tan_half_fov;
+        float tan_half_hori_fov;
+        float tan_half_hori_sky;
+        float hori_sky;
+        float yaw;
+        float src_x;
+        float tan_pitch;
+        float hori_y;
+        float hori_pixels;
+
+        if (bg_screen != NULL && bg_screen->width != 0 && bg_screen->height != 0
+            && sky->width != 0 && sky->height != 0 && gSky_image_height != 0) {
+            tan_half_fov = (float)Tan(camera_data->field_of_view / 2);
+            if (tan_half_fov > 0.0f) {
+                tan_half_hori_fov = tan_half_fov * (float)camera_data->aspect;
+                tan_half_hori_sky = (float)sky->width * tan_half_hori_fov / (float)bg_screen->width;
+                hori_sky = 2.0f * atanf(tan_half_hori_sky);
+                if (hori_sky > 0.0f) {
+                    int repetitions = (int)(6.2831853f / hori_sky + 0.5f);
+                    if (repetitions < 1) {
+                        repetitions = 1;
+                    }
+                    hori_sky = 6.2831853f / (float)repetitions;
+                    yaw = atan2f((float)gCamera_to_world.m[2][0], (float)gCamera_to_world.m[2][2]);
+                    src_x = (float)sky->width * (-yaw / hori_sky);
+                    src_x = fmodf(src_x, (float)sky->width);
+                    if (src_x < 0.0f) {
+                        src_x += (float)sky->width;
+                    }
+                    tan_pitch = (float)gCamera_to_world.m[2][1]
+                        / sqrtf((float)gCamera_to_world.m[2][0] * (float)gCamera_to_world.m[2][0]
+                            + (float)gCamera_to_world.m[2][2] * (float)gCamera_to_world.m[2][2]);
+                    hori_y = tan_pitch / tan_half_fov * (float)bg_screen->height / 2.0f;
+                    hori_pixels = (float)sky->height
+                        - (float)gSky_image_underground * (float)sky->height / (float)gSky_image_height;
+                    gRenderVk_background.texture = GameRender_GetTexture(sky);
+                    gRenderVk_background.src_x = src_x;
+                    gRenderVk_background.top_y = -hori_y - hori_pixels;
+                    gRenderVk_background.texture_width = (float)sky->width;
+                    gRenderVk_background.texture_height = (float)sky->height;
+                    gRenderVk_background_valid = gRenderVk_background.texture != 0;
+                }
+            }
+        }
     }
     screen = gRender_screen;
     if (screen != NULL && screen->width != 0 && screen->height != 0) {

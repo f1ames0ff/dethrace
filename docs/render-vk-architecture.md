@@ -159,11 +159,12 @@ The frame uses:
   The horizon is excluded from colour keying so the background is not punched into the clear
   colour. This removes black sprite rectangles such as the car's spike sprite. The 2D overlay
   treats palette index 0 as transparent, preserving index 255 white highlights;
-- a screen-space background pass. The horizon texture is sampled by a full-screen triangle before
-  the world, with depth test/write disabled, so no far-plane or scene culling can remove the
-  background. The three-dimensional horizon copies are no longer used by the new path; the legacy
-  cockpit/replay path keeps `DoHorizon`. The first pass stretches the current track horizon image
-  across the viewport; correct panorama yaw/pitch mapping remains to do.
+- a screen-space background pass. The horizon texture is sampled by a full-screen triangle after
+  the world with depth test `EQUAL` and depth write disabled. It fills only pixels that no world
+  geometry covered, so the background cannot hide the car or track. Yaw scrolls the panorama and
+  pitch shifts its horizon, matching the legacy `ExternalSky` mapping; camera translation is not
+  used. The three-dimensional horizon copies are no longer used by the new path; the legacy
+  cockpit/replay path keeps `DoHorizon`.
 
 The first measured scene has about 3408 draws, 38638 vertices and 65949 indices. The CPU bridge
 walks the live BRender scene every frame with no batching, indirect submission, shadows, mirror,

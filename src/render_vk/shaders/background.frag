@@ -2,9 +2,33 @@
 
 layout(set = 0, binding = 0) uniform sampler2D tex;
 
+layout(push_constant) uniform BackgroundPush {
+    float src_x;
+    float top_y;
+    float texture_width;
+    float texture_height;
+} background;
+
 layout(location = 0) in vec2 v_uv;
 layout(location = 0) out vec4 o_color;
 
 void main() {
-    o_color = vec4(texture(tex, v_uv).rgb, 1.0);
+    int width = max(int(background.texture_width), 1);
+    int height = max(int(background.texture_height), 1);
+    int screen_y = int(floor(gl_FragCoord.y));
+    int top = int(floor(background.top_y));
+    int u;
+    int v;
+
+    if (screen_y < top) {
+        u = 0;
+        v = 0;
+    } else if (screen_y >= top + height) {
+        u = 0;
+        v = height - 1;
+    } else {
+        u = int(mod(floor(gl_FragCoord.x + background.src_x), float(width)));
+        v = screen_y - top;
+    }
+    o_color = vec4(texelFetch(tex, ivec2(clamp(u, 0, width - 1), clamp(v, 0, height - 1)), 0).rgb, 1.0);
 }
