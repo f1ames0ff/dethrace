@@ -107,7 +107,13 @@ static RvkResult rvk_create_world_pipeline(RvkDevice *device) {
     depth_stencil.stencilTestEnable = VK_FALSE;
 
     memset(&color_attachment, 0, sizeof(color_attachment));
-    color_attachment.blendEnable = VK_FALSE;
+    color_attachment.blendEnable = VK_TRUE;
+    color_attachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+    color_attachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+    color_attachment.colorBlendOp = VK_BLEND_OP_ADD;
+    color_attachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+    color_attachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+    color_attachment.alphaBlendOp = VK_BLEND_OP_ADD;
     color_attachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
     memset(&color_blend, 0, sizeof(color_blend));
     color_blend.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
@@ -126,7 +132,7 @@ static RvkResult rvk_create_world_pipeline(RvkDevice *device) {
     memset(&push_range, 0, sizeof(push_range));
     push_range.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
     push_range.offset = 0;
-    push_range.size = sizeof(float) * 20;
+    push_range.size = sizeof(float) * 21;
     memset(&layout_info, 0, sizeof(layout_info));
     layout_info.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
     layout_info.setLayoutCount = 2;

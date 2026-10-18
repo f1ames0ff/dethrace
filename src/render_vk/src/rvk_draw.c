@@ -3,6 +3,7 @@
 typedef struct RvkWorldPush {
     float model[16];
     float tint[4];
+    uint32_t flags;
 } RvkWorldPush;
 
 static VkDescriptorSet rvk_texture_descriptor(RvkDevice *device, RvkTexture texture) {
@@ -100,6 +101,7 @@ RvkResult rvk_draw_world(RvkDevice *device, const float view_proj[16],
         }
         memcpy(push.model, draw->model, sizeof(push.model));
         memcpy(push.tint, draw->tint, sizeof(push.tint));
+        push.flags = draw->flags;
         device->vk.CmdBindDescriptorSets(device->command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
             device->world_pipeline_layout, 1, 1, &texture, 0, NULL);
         device->vk.CmdPushConstants(device->command_buffer, device->world_pipeline_layout,

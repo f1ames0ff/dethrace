@@ -439,17 +439,24 @@ static int GameRender_EmitRun(const float model[16], br_material *material, uint
     draw = &gRenderVk_draws[gRenderVk_draw_count++];
     draw->first_index = first_index;
     draw->index_count = index_count;
+    draw->flags = 0;
     memcpy(draw->model, model, sizeof(draw->model));
     draw->texture = GameRender_GetTexture(material != NULL ? material->colour_map : NULL);
     draw->tint[0] = 1.0f;
     draw->tint[1] = 1.0f;
     draw->tint[2] = 1.0f;
     draw->tint[3] = 1.0f;
-    if (material != NULL && material->colour_map == NULL) {
-        colour = material->colour;
-        draw->tint[0] = (float)((colour >> 16) & 0xFFu) / 255.0f;
-        draw->tint[1] = (float)((colour >> 8) & 0xFFu) / 255.0f;
-        draw->tint[2] = (float)(colour & 0xFFu) / 255.0f;
+    if (material != NULL) {
+        draw->tint[3] = (float)material->opacity / 255.0f;
+        if (material->colour_map != NULL && (material->flags & BR_MATF_DISABLE_COLOUR_KEY) == 0) {
+            draw->flags |= RVK_DRAW_FLAG_COLOUR_KEY;
+        }
+        if (material->colour_map == NULL) {
+            colour = material->colour;
+            draw->tint[0] = (float)((colour >> 16) & 0xFFu) / 255.0f;
+            draw->tint[1] = (float)((colour >> 8) & 0xFFu) / 255.0f;
+            draw->tint[2] = (float)(colour & 0xFFu) / 255.0f;
+        }
     }
     return 1;
 }

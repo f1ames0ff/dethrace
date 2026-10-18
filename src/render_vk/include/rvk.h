@@ -42,7 +42,10 @@ typedef struct RvkWorldDraw {
     float model[16];
     RvkTexture texture;
     float tint[4];
+    uint32_t flags;
 } RvkWorldDraw;
+
+#define RVK_DRAW_FLAG_COLOUR_KEY 1u
 
 typedef void (*RvkLogFn)(void *user, int level, const char *message);
 typedef void (*RvkProc)(void);

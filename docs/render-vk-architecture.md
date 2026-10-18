@@ -147,7 +147,11 @@ The frame uses:
   materials and textures;
 - `rvk_draw_overlay` for the existing 16-bit/8-bit HUD surface while the UI is ported;
 - `rvk_create_texture` with bridge-side texture caching, and prepared `v11group` data for track
-  models whose original vertex/face arrays were released by `DodgyModelUpdate`.
+  models whose original vertex/face arrays were released by `DodgyModelUpdate`;
+- material opacity and colour-key handling. The world pipeline blends with source alpha, and the
+  fragment shader discards near-black texels when the material has colour keying enabled (the
+  BRender default unless `BR_MATF_DISABLE_COLOUR_KEY` is set). This removes black sprite
+  rectangles such as the car's spike sprite.
 
 The first measured scene has about 3408 draws, 38638 vertices and 65949 indices. The CPU bridge
 walks the live BRender scene every frame with no batching, indirect submission, shadows, mirror,

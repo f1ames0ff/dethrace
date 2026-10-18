@@ -11,6 +11,7 @@ layout(set = 0, binding = 0) uniform WorldUniforms {
 layout(push_constant) uniform WorldPushConstants {
     mat4 model;
     vec4 tint;
+    uint flags;
 } push;
 
 layout(location = 0) out vec3 v_normal;
