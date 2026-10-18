@@ -92,13 +92,14 @@ present (FIFO default, uncapped opt-in)
 
 ### B2 - Frame builder / pass graph
 - Replace `RenderAFrame`'s pass orchestration with a frame builder that emits the pass list and
-  explicit targets. The Vulkan layer executes it (depends on A4).
+  explicit targets. The Vulkan layer executes it (depends on D3).
 - Main target is explicit; rearview/wreck are sub-rect composites; skipped swaps get a frame boundary.
 - Acceptance: forward/mirror/cockpit/map/summary correct; pass count and CPU record measured.
 
 ### B3 - Shadow system
-- Batch all in-range projected shadows into one pass or one indirect batch; remove per-car camera
-  hither fudge and clip-plane passes where possible.
+- Implement per-draw clip planes first (the current raster path has none); then batch in-range
+  projected shadows where clip state allows. Split shadow generation from submission; remove
+  per-car camera hither mutation but keep clip semantics.
 - Keep the shared camera immutable; no shadow pass may mutate `hither_z`.
 - Acceptance: shadows visually match the software reference; no `actsupt.c:494`; fewer passes.
 
@@ -134,8 +135,9 @@ present (FIFO default, uncapped opt-in)
 
 ## Dependencies
 
-- B1 starts after D1's record schema/frame boundary; it does not start before the layer boundary.
-- B2 depends on D3 (frame graph/main target/composite).
+- B1 starts after D4: D0+D0b and D1-D3 finish the Vulkan layer first, as required by the user's
+  order. B1 does not start before the layer boundary.
+- B2 depends on B1 and D3 (frame graph/main target/composite).
 - B3/B4 can be staged behind flags and A/B tested.
 - B5 uses the current texture path; bindless/palette LUT are optional D4 items, not dependencies.
 - B6 depends on B1/B2 and the proxy list being immutable during recording; it is single-threaded.

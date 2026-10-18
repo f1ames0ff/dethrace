@@ -66,7 +66,8 @@ overlay bytes, UBO slot use, sim ticks, `gFrame_period`, the camera 10 ms clamp 
 `gKnobbled_frame_period`. Views: forward and default cockpit+mirror; damage/repair; palette fade;
 map. Ablations: mirror off, shadow none/us_only/everyone, `NO_GEOMETRY`, white-sets/view, palette
 static/fade. Baselines in Debug and one authorized optimized build.
-Exit: committed CSV and p50/p95/p99 per phase; the dominant bucket is named; no 200 FPS claim.
+Exit: committed CSV and p50/p95/p99 per phase; the dominant bucket is named; mirror-on/off and
+damage-frequency counts are present; no 200 FPS claim. D0b is part of the D0 exit.
 
 ### D0b - capture, references and determinism harness
 Offscreen 24-bit capture for vkrend and software, committed references for 11 screens: forward,
@@ -74,14 +75,17 @@ mirror, cockpit (mirror inset), map, summary/wreck, pratcam, fade, dim, gauges/p
 frontend/menu, damaged/repair. Comparator tolerance: <=0.5% pixels with any channel diff >8, no
 16x12 cell mean >8, HUD band <=1%. Add `--seed`/fixed seed and a render cap honored by vkrend
 (not the SDL limiter), plus a sim-tick/replay hash test. These are prerequisites for any D2/D3
-parity claim.
+parity claim. Extend `compare_vkrend_frames.ps1` with the cell/HUD metrics above.
+Exit: committed references; comparator extended; seed/cap/replay-hash test passes (tick count
+±1%, car positions <=1e-3 m or equal hash).
 
 ### D1 - flatten and stabilise
 Gate the fixed tick; add `BrVkrendFrameBegin/End` at `RenderAFrame`/menu/flic boundaries independent
 of `doubleBuffer`; one versioned POD record schema shared by vkrend and the rewrite; stable dynamic
-geometry ring (no per-frame `vkCreateBuffer`, no steady-state re-upload); make descriptor sets
-immutable for the recorded frame (pin or per-pass sets; never evict a set used by an earlier pass);
-feature/fallback table, fail-loud uncapped, `image_count >= frames + 1`, forced-loss test;
+geometry ring (no per-frame `vkCreateBuffer`, no steady-state re-upload); pin descriptor sets for
+the recorded frame (per-pass/bindless sets are D4; never evict a set used by an earlier pass);
+feature/fallback table, fail-loud uncapped, `image_count >= frames + 1`, forced-loss test,
+device-fault query. Slot-aware recovery is a precondition for any D4 FIF.
 dirty-rect overlay/single upload. Mirror proxy reuse belongs to B2; D1 only stabilizes records.
 Exit: palette-fade A/B; zero steady-state geometry uploads; no skipped-swap accumulation.
 
@@ -98,8 +102,9 @@ Exit: forward/mirror/cockpit/map/summary parity; no blank map; pass/scene counts
 
 ### D4 - architecture only if D0/D2 require
 Per-slot descriptor sets + timeline wait + slot-keyed deferred destruction (required before any
-2-3 FIF); bindless/descriptor indexing; indirect-count/GPU culling; frame graph/transient
-aliasing; dynamic rendering. Each item needs a D0/D2 measurement that justifies it.
+2-3 FIF); device-fault query and slot-aware recovery before enabling FIF; bindless/descriptor
+indexing; indirect-count/GPU culling; frame graph/transient aliasing; dynamic rendering. Each item
+needs a D0/D2 measurement that justifies it.
 Exit: validation clean, churn race clean, measured win.
 
 ## Phase 2 - legacy renderer rewrite plan
@@ -109,7 +114,7 @@ Update `docs/vkrend-renderer-rewrite-plan.md` to the verified boundary:
   11 screens, seed/render cap, tick/replay hash.
 - B1 extraction at `BrZbSceneRenderAdd`/DDI, not a scene walk; track column/lollipop culling and
   order-table semantics; one record format shared with D1.
-- B2 frame builder after D3; A4 is the executor, B2 the pass producer.
+- B2 frame builder after B1 and D3; A4 is the executor, B2 the pass producer.
 - B3 shadows: clip planes first, split generation from submission; no camera mutation.
 - B4 UI: full HUD/map/cockpit/pratcam/flic scope, map underlay/world viewport; 16-bit dim bridge;
   glyph atlas later.
@@ -121,7 +126,7 @@ Update `docs/vkrend-renderer-rewrite-plan.md` to the verified boundary:
 
 ## Phase 3 - execution
 
-D0 -> D1 -> D2 -> D3 -> (D4 only with evidence) -> B0-B8. A7-style checkpoints are provisional; the
+D0 + D0b -> D1 -> D2 -> D3 -> (D4 only with evidence) -> B0-B8. A7-style checkpoints are provisional; the
 final 200 FPS gate is after B8. Create `VKREND_LEGACY_PATH` in D1 as a game-side producer selector,
 defaulting to the legacy producer until B2.
 
@@ -139,15 +144,17 @@ defaulting to the legacy producer until B2.
 
 ## Local gates
 
-- Build: `cmake --build build-vk-on --config Debug --target dethrace`.
-- Software: run `build-vk-on\Debug\dethrace.exe --window --dir <CARMA>` for 60 s.
+- Build: configure with `-DBUILD_TESTS=ON`; `cmake --build build-vk-on --config Debug --target dethrace`.
+- Software: run `build-vk-on\Debug\dethrace.exe --window --dir <CARMA>` for 60 s; no crash/visual smoke.
 - OpenGL: same with `--opengl`.
 - Validation: `VKREND_VALIDATION=1`; require "validation layers enabled" and zero `VUID`/`ERROR` lines.
-- Reccmp: configure `-DMSVC_42_FOR_RECCMP=ON`, build, attach the report.
+- Reccmp: configure `-DMSVC_42_FOR_RECCMP=ON`, build, run the reccmp report; no new mismatch.
 - `FIX_BUGS=OFF`: configure/build with `-DDETHRACE_FIX_BUGS=OFF`, ctest.
-- Linux: configure/build `-DDETHRACE_VULKAN=ON` and default, ctest.
-- Recovery: `VKREND_FORCE_DEVICE_LOST` (added in D1) plus a Display 4101 query over the run window.
-- One instance: refuse to start if `dethrace`/`quakeray` is running; serialize runs.
+- Linux: local WSL/container configure/build `-DDETHRACE_VULKAN=ON` and default, ctest; CI alone
+  is not a substitute.
+- Recovery: D1 adds `VKREND_FORCE_DEVICE_LOST`; three losses, recovery <=10 s, no freeze/abort,
+  plus a Display 4101 query over the run window.
+- One instance: a runner check for `dethrace`/`quakeray`; serialize runs.
 - If 5 ms is not reached, report the dominant D0 bucket and stop before claiming 200 FPS.
 
 ## Risks
