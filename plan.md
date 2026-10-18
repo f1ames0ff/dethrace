@@ -129,9 +129,9 @@ parts (such as `FIN.DAT`) out of the frame. The world pipeline blends by source 
 discards near-black final texels unconditionally as a conservative colour-key fallback; an exact
 per-material colour-key path remains. The first race
 scene submits about 3408 draws, 38638 vertices and 65949 indices because the bridge emits one draw
-per material run with no batching. An initial horizon pass is placed once in world space and
-submitted before the world, depth-tested behind the car and track. Dynamic horizon clipping,
-shadow, mirror, cockpit and effect passes are not implemented.
+per material run with no batching. An initial horizon pass is camera-centred for coverage but
+keeps its initial rotation, and is submitted before the world with depth testing behind the car
+and track. Dynamic horizon clipping, shadow, mirror, cockpit and effect passes are not implemented.
 
 Early performance: Release, 640x480, IMMEDIATE, `--fps=0`, one 60-second stationary autostart
 scene with `RVK_FPS_LOG=1`: 1016-1067 presented frames/s in steady samples, about 1020 frames/s

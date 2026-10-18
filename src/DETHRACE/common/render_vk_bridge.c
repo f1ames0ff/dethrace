@@ -1006,9 +1006,9 @@ static int GameRender_PrepareSky(br_actor *camera) {
     if (!sky_placed) {
         yaw = BrRadianToAngle(atan2(gCamera_to_world.m[2][0], gCamera_to_world.m[2][2]));
         BrMatrix34RotateY(&gForward_sky_actor->t.t.mat, yaw);
-        BrVector3Copy(&gForward_sky_actor->t.t.translate.t, (br_vector3 *)gCamera_to_world.m[3]);
         sky_placed = 1;
     }
+    BrVector3Copy(&gForward_sky_actor->t.t.translate.t, (br_vector3 *)gCamera_to_world.m[3]);
     gForward_sky_actor->render_style = BR_RSTYLE_FACES;
     return 1;
 }
