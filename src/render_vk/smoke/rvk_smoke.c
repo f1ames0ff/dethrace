@@ -45,6 +45,7 @@ static void print_usage(void) {
     printf("  --present MODE   fifo or immediate (default fifo)\n");
     printf("  --delay-ms N     sleep between frames (default 0)\n");
     printf("  --resize-test    resize the window twice while running\n");
+    printf("  --acquire-ood-test  resize without notifying the renderer first\n");
     printf("  --csv PATH       write per-frame timing CSV\n");
     printf("  --help           show this help\n");
 }
@@ -56,6 +57,7 @@ int rvk_smoke_run(int argc, char **argv, const RvkSmokeHost *host) {
     uint32_t delay_ms = 0;
     int enable_validation = 0;
     int resize_test = 0;
+    int acquire_ood_test = 0;
     RvkPresentMode present_mode = RVK_PRESENT_FIFO;
     const char *csv_path = NULL;
     RvkSmokeHost backend;
@@ -89,6 +91,8 @@ int rvk_smoke_run(int argc, char **argv, const RvkSmokeHost *host) {
             enable_validation = 1;
         } else if (strcmp(argv[i], "--resize-test") == 0) {
             resize_test = 1;
+        } else if (strcmp(argv[i], "--acquire-ood-test") == 0) {
+            acquire_ood_test = 1;
         } else if (strcmp(argv[i], "--present") == 0 && i + 1 < argc) {
             i++;
             if (strcmp(argv[i], "fifo") == 0) {
@@ -114,8 +118,8 @@ int rvk_smoke_run(int argc, char **argv, const RvkSmokeHost *host) {
         fprintf(stderr, "render_vk_smoke: width and height must be non-zero\n");
         return 1;
     }
-    if (resize_test && host->resize == NULL) {
-        fprintf(stderr, "render_vk_smoke: this backend does not support --resize-test\n");
+    if ((resize_test || acquire_ood_test) && host->resize == NULL) {
+        fprintf(stderr, "render_vk_smoke: this backend does not support resize tests\n");
         return 1;
     }
 
@@ -178,6 +182,9 @@ int rvk_smoke_run(int argc, char **argv, const RvkSmokeHost *host) {
         }
         if (sample_count >= target_frames && target_frames > 0) {
             break;
+        }
+        if (acquire_ood_test && sample_count == 30) {
+            backend.resize(backend.user, 800, 600);
         }
 
         result = rvk_begin_frame(device);

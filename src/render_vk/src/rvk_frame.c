@@ -34,10 +34,6 @@ RvkResult rvk_begin_frame(RvkDevice *device) {
     if (result != VK_SUCCESS) {
         return rvk_check(device, result, "vkWaitForFences");
     }
-    result = device->vk.ResetFences(device->device, 1, &device->in_flight);
-    if (result != VK_SUCCESS) {
-        return rvk_check(device, result, "vkResetFences");
-    }
 
     result = device->vk.AcquireNextImageKHR(device->device, device->swapchain, UINT64_MAX, device->image_available, VK_NULL_HANDLE, &device->image_index);
     if (result == VK_ERROR_OUT_OF_DATE_KHR) {
@@ -154,8 +150,15 @@ RvkResult rvk_end_frame(RvkDevice *device) {
     submit_info.signalSemaphoreCount = 1;
     submit_info.pSignalSemaphores = &device->render_finished[device->image_index];
 
+    result = device->vk.ResetFences(device->device, 1, &device->in_flight);
+    if (result != VK_SUCCESS) {
+        device->device_lost = 1;
+        device->frame_open = 0;
+        return rvk_check(device, result, "vkResetFences");
+    }
     result = device->vk.QueueSubmit(device->graphics_queue, 1, &submit_info, device->in_flight);
     if (result != VK_SUCCESS) {
+        device->device_lost = 1;
         device->frame_open = 0;
         return rvk_check(device, result, "vkQueueSubmit");
     }
