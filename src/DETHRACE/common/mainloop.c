@@ -35,9 +35,56 @@
 #include "trig.h"
 #include "utility.h"
 #include "world.h"
+#include <stdio.h>
 #include <stdlib.h>
+#ifdef _WIN32
+#include <windows.h>
+#else
+#include <time.h>
+#endif
 
 #define SIM_STEP_MS 20
+
+static br_boolean prof_checked;
+static br_boolean prof_enabled;
+static FILE* prof_file;
+static double prof_frame_start;
+static double prof_sim_start;
+static double prof_render_start;
+static double prof_sim_us;
+static double prof_render_us;
+static unsigned long prof_frame;
+static unsigned prof_sim_ticks;
+
+static double VkProfNowUs(void) {
+#ifdef _WIN32
+    static LARGE_INTEGER frequency;
+    LARGE_INTEGER counter;
+
+    if (frequency.QuadPart == 0)
+        QueryPerformanceFrequency(&frequency);
+    QueryPerformanceCounter(&counter);
+    return (double)counter.QuadPart * 1000000.0 / (double)frequency.QuadPart;
+#else
+    struct timespec ts;
+
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return (double)ts.tv_sec * 1000000.0 + (double)ts.tv_nsec / 1000.0;
+#endif
+}
+
+static void VkProfInit(void) {
+    if (prof_checked)
+        return;
+
+    prof_checked = BR_TRUE;
+    prof_enabled = getenv("VKREND_PROFILE") != NULL;
+    if (prof_enabled) {
+        prof_file = fopen("vkrend_profile.csv", "w");
+        if (prof_file != NULL)
+            fprintf(prof_file, "frame,total_us,sim_us,render_us,frame_period,camera_period,sim_ticks,mirror_on\n");
+    }
+}
 
 // GLOBAL: CARM95 0x00514afc
 int gNasty_kludgey_cockpit_variable;
@@ -583,6 +630,8 @@ tRace_result MainGameLoop(void) {
     BrLogPrintf("VKREND: race loop started\n");
 #endif
 
+    VkProfInit();
+
     sim_accumulator = SIM_STEP_MS;
     tried_to_allocate_AR = 0;
     gCar_to_view = &gProgram_state.current_car;
@@ -620,6 +669,12 @@ tRace_result MainGameLoop(void) {
 
     do {
         frame_start_time = GetTotalTime();
+        if (prof_enabled) {
+            prof_frame_start = VkProfNowUs();
+            prof_sim_us = 0.0;
+            prof_render_us = 0.0;
+            prof_sim_ticks = 0;
+        }
         CyclePollKeys();
         CheckSystemKeys(1);
         NetReceiveAndProcessMessages();
@@ -658,6 +713,10 @@ tRace_result MainGameLoop(void) {
             }
         }
         if (sim_due) {
+            if (prof_enabled) {
+                prof_sim_start = VkProfNowUs();
+                prof_sim_ticks++;
+            }
             if (!gAction_replay_mode) {
                 tU32 tick_time = (gNet_mode != eNet_mode_none ? gLast_tick_count : sim_tick_time) - gRace_start;
 
@@ -674,6 +733,8 @@ tRace_result MainGameLoop(void) {
             } else {
                 DoActionReplay(sim_step);
             }
+            if (prof_enabled)
+                prof_sim_us = VkProfNowUs() - prof_sim_start;
         }
         MungePalette();
         PollCameraControls(camera_period);
@@ -730,6 +791,8 @@ tRace_result MainGameLoop(void) {
             gFrame_period = saved_period;
         }
         gFrame_period = render_period;
+        if (prof_enabled)
+            prof_render_start = VkProfNowUs();
         if (!gWait_for_it) {
 #if defined(DETHRACE_FIX_BUGS)
             // Fixes issue where returning to race mode from the UI shows 2d elements in the wrong colors for half a second.
@@ -743,6 +806,8 @@ tRace_result MainGameLoop(void) {
 #endif
             RenderAFrame(1);
         }
+        if (prof_enabled)
+            prof_render_us = VkProfNowUs() - prof_render_start;
         CheckReplayTurnOn();
         if (!gRecover_car
             && gProgram_state.prog_status == eProg_game_ongoing
@@ -818,6 +883,14 @@ tRace_result MainGameLoop(void) {
         if (gNet_mode == eNet_mode_client && gAbandon_game) {
             gProgram_state.prog_status = eProg_idling;
             gAbandon_game = 0;
+        }
+
+        if (prof_enabled && prof_file != NULL) {
+            fprintf(prof_file, "%lu,%.3f,%.3f,%.3f,%u,%u,%u,%d\n", ++prof_frame,
+                VkProfNowUs() - prof_frame_start, prof_sim_us, prof_render_us,
+                gFrame_period, camera_period, prof_sim_ticks, (int)gMirror_on__graphics);
+            if ((prof_frame & 63) == 0)
+                fflush(prof_file);
         }
 
     } while (gProgram_state.prog_status == eProg_game_ongoing
