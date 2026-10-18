@@ -1049,6 +1049,7 @@ void GameRender_AddUniverse(br_actor *universe) {
             GameRender_AddActor(gForward_sky_actor, universe, NULL, gHorizon_material, BR_RSTYLE_FACES);
         }
         gForward_sky_actor->render_style = BR_RSTYLE_NONE;
+        gRenderVk_draw_flags = 0;
     }
     GameRender_AddActor(universe, universe, NULL, NULL, BR_RSTYLE_DEFAULT);
     {
