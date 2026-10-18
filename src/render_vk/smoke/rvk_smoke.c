@@ -69,6 +69,7 @@ int rvk_smoke_run(int argc, char **argv, const RvkSmokeHost *host) {
     size_t sample_count = 0;
     FILE *csv = NULL;
     uint32_t stalls = 0;
+    uint32_t out_of_date_frames = 0;
     int lost = 0;
     int i;
 
@@ -189,6 +190,7 @@ int rvk_smoke_run(int argc, char **argv, const RvkSmokeHost *host) {
 
         result = rvk_begin_frame(device);
         if (result == RVK_ERROR_OUT_OF_DATE) {
+            out_of_date_frames++;
             stalls++;
             backend.sleep_ms(backend.user, 5);
             if (stalls > 1000) {
@@ -218,6 +220,7 @@ int rvk_smoke_run(int argc, char **argv, const RvkSmokeHost *host) {
             result = rvk_end_frame(device);
         }
         if (result == RVK_ERROR_OUT_OF_DATE) {
+            out_of_date_frames++;
             stalls++;
             backend.sleep_ms(backend.user, 5);
             continue;
@@ -264,6 +267,7 @@ int rvk_smoke_run(int argc, char **argv, const RvkSmokeHost *host) {
     if (csv != NULL) {
         fclose(csv);
     }
+    printf("out-of-date frames: %u\n", out_of_date_frames);
     if (samples != NULL && sample_count > 0) {
         double sum = 0.0;
         size_t index;
