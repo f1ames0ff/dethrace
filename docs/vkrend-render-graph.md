@@ -152,11 +152,12 @@ present fence, one acquire semaphore, one render-finished semaphore per swapchai
 `video_create_sync_objects`, `video.c:1221`). This is spec-correct for a one-frame-in-flight
 design; what it lacks is scene-recording overlap, not present/CPU overlap.
 
-The swapchain currently hardcodes `VK_PRESENT_MODE_FIFO_KHR` when available (otherwise
-`present_modes[0]`) in `video_create_swapchain` (`video.c:746-790`). There is **no** uncapped or
-IMMEDIATE switch yet. FIFO on the attached 165 Hz monitor has a 6.06 ms floor (165 FPS), so a
-200 FPS result requires an explicit uncapped mode and cannot be a displayed-frame count on this
-monitor.
+The swapchain defaults to `VK_PRESENT_MODE_FIFO_KHR` when available (otherwise
+`present_modes[0]`) in `video_create_swapchain`. `VKREND_UNCAPPED=1` selects
+`VK_PRESENT_MODE_IMMEDIATE_KHR` when available, otherwise `VK_PRESENT_MODE_MAILBOX_KHR`, and logs
+the chosen mode. FIFO on the attached 165 Hz monitor has a 6.06 ms floor (165 FPS), so a 200 FPS
+result requires the uncapped mode and cannot be a displayed-frame count on this monitor. A
+windowed IMMEDIATE presentation can still be compositor-limited.
 
 ### Measured cost (provenance matters)
 
@@ -176,6 +177,23 @@ monitor.
   dim/pratcam passes. Only the last group is caused by `gDevious_2d`; the whole count is not.
 - The 320x200 -> 640x480 lores conversion is **not** part of the normal 640x480 race path; it runs
   only in the resolution-switch branch of `ReallyCopyBackScreen` (`allsys.c:583-595`).
+
+### Current measurement after the blocker fixes
+
+- The texture upload path now reuses one command pool, command buffer and fence instead of creating and
+  destroying them for every texture (this alone removed roughly 15 ms/frame in Debug).
+- Draws use one descriptor set with a 512-entry texture array, a direct-mapped material cache and a
+  process-wide texture serial; the per-draw descriptor-set bind is gone (draw data is addressed by a
+  push constant/SSBO slot).
+- **Debug**: 50-65 FPS (15-20 ms/frame), scene record 14-20 ms, scene-fence wait 0.2-0.3 ms.
+  **RelWithDebInfo**: 49-65 FPS, similar scene record. The GPU is idle.
+- With `VKREND_UNCAPPED=1` the swapchain selects `VK_PRESENT_MODE_IMMEDIATE_KHR` (present mode 0);
+  a 224-draw scene measured 40-46 FPS, so the remaining limit is CPU scene recording, not vsync.
+- The remaining cost is the scene record itself: 140-250 draw groups at roughly 0.1 ms each
+  (BRender traversal, vkrend state/UBO, and the driver's draw command recording), the 13-19 passes,
+  and the 2D HUD. The 200 FPS target is **not met**. Reaching it requires the scene-record layer
+  with merged static geometry and multi-draw/indirect submission (or an equivalent large reduction
+  in draw count), not another micro-optimization.
 
 ### Frame pacing and simulation decoupling
 
