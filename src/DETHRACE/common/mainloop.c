@@ -754,19 +754,12 @@ tRace_result MainGameLoop(void) {
             CheckCheckpoints();
         }
         ChangingView();
-        if (sim_due) {
-            MungeCarGraphics(sim_step);
-        }
         FunkThoseTronics();
         GrooveThoseDelics();
-        if (sim_due) {
-            DoWheelDamage(sim_step);
-        }
         CalculateFrameRate();
-        if (sim_due) {
-            MungePedestrians(sim_step);
-        }
         CameraBugFix(&gProgram_state.current_car, camera_period);
+        ChangeDepthEffect();
+        EnterUserMessage();
         if (!gAction_replay_mode && sim_due) {
             tU32 saved_period = gFrame_period;
 
@@ -776,20 +769,17 @@ tRace_result MainGameLoop(void) {
             ProcessOilSpills(sim_step);
         }
         if (sim_due) {
+            MungeCarGraphics(sim_step);
+            DoWheelDamage(sim_step);
+            MungePedestrians(sim_step);
             MungeShrapnel(sim_step);
-        }
-        ChangeDepthEffect();
-        if (sim_due) {
             ServiceGameInRace();
-        }
-        EnterUserMessage();
-        if (sim_due) {
             tU32 saved_period = gFrame_period;
-
             gFrame_period = sim_step;
             SkidsPerFrame();
             gFrame_period = saved_period;
         }
+
         gFrame_period = render_period;
         if (prof_enabled)
             prof_render_start = VkProfNowUs();
