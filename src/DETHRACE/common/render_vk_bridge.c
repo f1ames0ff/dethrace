@@ -202,7 +202,7 @@ static int GameRender_ConvertPixelmap(br_pixelmap *pm, uint8_t *rgba8) {
                 *out++ = (uint8_t)((colour >> 16) & 0xFFu);
                 *out++ = (uint8_t)((colour >> 8) & 0xFFu);
                 *out++ = (uint8_t)(colour & 0xFFu);
-                *out++ = (colour & 0xFFFFFFu) == 0 ? 0 : 255;
+                *out++ = 255;
             }
         }
         return 1;
@@ -214,7 +214,7 @@ static int GameRender_ConvertPixelmap(br_pixelmap *pm, uint8_t *rgba8) {
                 *out++ = GameRender_Expand5((value >> 11) & 31u);
                 *out++ = GameRender_Expand6((value >> 5) & 63u);
                 *out++ = GameRender_Expand5(value & 31u);
-                *out++ = value == 0 ? 0 : 255;
+                *out++ = 255;
             }
         }
         return 1;
@@ -226,7 +226,7 @@ static int GameRender_ConvertPixelmap(br_pixelmap *pm, uint8_t *rgba8) {
                 *out++ = texel[2];
                 *out++ = texel[1];
                 *out++ = texel[0];
-                *out++ = (texel[0] | texel[1] | texel[2]) == 0 ? 0 : 255;
+                *out++ = 255;
             }
         }
         return 1;
@@ -453,7 +453,8 @@ static int GameRender_EmitRun(const float model[16], br_material *material, uint
     draw->tint[3] = 1.0f;
     if (material != NULL) {
         draw->tint[3] = (float)material->opacity / 255.0f;
-        if (material->colour_map != NULL && (material->flags & BR_MATF_DISABLE_COLOUR_KEY) == 0) {
+        if ((gRenderVk_draw_flags & RVK_DRAW_FLAG_SKY) == 0 && material->colour_map != NULL
+            && (material->flags & BR_MATF_DISABLE_COLOUR_KEY) == 0) {
             draw->flags |= RVK_DRAW_FLAG_COLOUR_KEY;
         }
         if (material->colour_map == NULL) {
@@ -969,7 +970,7 @@ void GameRender_BeginScene(br_actor *camera) {
         static float yon_base;
         static int yon_base_valid;
         const char *far_value = getenv("RVK_FAR_MULTIPLIER");
-        float multiplier = 10.0f;
+        float multiplier = 20.0f;
 
         if (far_value != NULL) {
             char *end = NULL;
@@ -1040,7 +1041,7 @@ void GameRender_AddUniverse(br_actor *universe) {
     }
     if (GameRender_PrepareSky(gRenderVk_camera)) {
         int i;
-        gRenderVk_draw_flags = 0;
+        gRenderVk_draw_flags = RVK_DRAW_FLAG_SKY;
         for (i = 0; i < 4; i++) {
             BrMatrix34RotateY(&gForward_sky_actor->t.t.mat,
                 gRenderVk_sky_base_yaw + (br_angle)i * BR_ANGLE_DEG(90));

@@ -15,10 +15,13 @@ layout(location = 0) out vec4 o_color;
 
 void main() {
     vec4 color = texture(tex, v_uv);
-    if ((color.a < 0.01) || (dot(color.rgb, vec3(0.299, 0.587, 0.114)) < 0.0039)) {
+    if ((push.flags & 1u) != 0u && dot(color.rgb, vec3(0.299, 0.587, 0.114)) < 0.0039) {
         discard;
     }
     color *= push.tint;
+    if (color.a < 0.01) {
+        discard;
+    }
     float ndl = max(dot(normalize(v_normal), normalize(vec3(0.35, 0.8, 0.2))), 0.0);
     color.rgb *= 0.55 + 0.45 * ndl;
     o_color = color;
