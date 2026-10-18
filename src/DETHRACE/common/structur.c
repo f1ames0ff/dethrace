@@ -601,6 +601,7 @@ void DoGame(void) {
                             && !gAbandon_game);
                     } else {
                         if (getenv("RVK_AUTOSTART") != NULL) {
+                            SortOpponents();
                             options_result = eSO_continue;
                         } else {
                             do {

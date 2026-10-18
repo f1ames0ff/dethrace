@@ -1099,7 +1099,7 @@ static void GameRender_LogFps(void) {
 }
 
 void GameRender_Swap(br_pixelmap *back) {
-    static const float clear_color[4] = {0.35f, 0.55f, 0.85f, 1.0f};
+    static const float clear_color[4] = {0.0f, 0.0f, 0.0f, 1.0f};
     RvkResult result;
     int have_overlay;
     int device_lost;
