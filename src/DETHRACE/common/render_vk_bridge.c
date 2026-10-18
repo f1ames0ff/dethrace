@@ -1007,9 +1007,11 @@ void GameRender_BeginScene(br_actor *camera) {
     }
 }
 
+static br_angle gRenderVk_sky_base_yaw;
+static int gRenderVk_sky_base_yaw_valid;
+
 static int GameRender_PrepareSky(br_actor *camera) {
     br_camera *camera_data;
-    br_angle yaw;
 
     if (camera == NULL || camera->type_data == NULL || gForward_sky_actor == NULL || gForward_sky_model == NULL
         || gHorizon_material == NULL || gProgram_state.current_depth_effect.sky_texture == NULL
@@ -1022,8 +1024,10 @@ static int GameRender_PrepareSky(br_actor *camera) {
         gOld_fov = camera_data->field_of_view;
         gOld_yon = camera_data->yon_z;
     }
-    yaw = BrRadianToAngle(atan2(gCamera_to_world.m[2][0], gCamera_to_world.m[2][2]));
-    BrMatrix34RotateY(&gForward_sky_actor->t.t.mat, yaw);
+    if (!gRenderVk_sky_base_yaw_valid) {
+        gRenderVk_sky_base_yaw = BrRadianToAngle(atan2(gCamera_to_world.m[2][0], gCamera_to_world.m[2][2]));
+        gRenderVk_sky_base_yaw_valid = 1;
+    }
     BrVector3Copy(&gForward_sky_actor->t.t.translate.t, (br_vector3 *)gCamera_to_world.m[3]);
     gForward_sky_actor->render_style = BR_RSTYLE_FACES;
     return 1;
@@ -1034,8 +1038,14 @@ void GameRender_AddUniverse(br_actor *universe) {
         return;
     }
     if (GameRender_PrepareSky(gRenderVk_camera)) {
+        int i;
         gRenderVk_draw_flags = 0;
-        GameRender_AddActor(gForward_sky_actor, universe, NULL, gHorizon_material, BR_RSTYLE_FACES);
+        for (i = 0; i < 4; i++) {
+            BrMatrix34RotateY(&gForward_sky_actor->t.t.mat,
+                gRenderVk_sky_base_yaw + (br_angle)i * BR_ANGLE_DEG(90));
+            BrVector3Copy(&gForward_sky_actor->t.t.translate.t, (br_vector3 *)gCamera_to_world.m[3]);
+            GameRender_AddActor(gForward_sky_actor, universe, NULL, gHorizon_material, BR_RSTYLE_FACES);
+        }
         gForward_sky_actor->render_style = BR_RSTYLE_NONE;
     }
     GameRender_AddActor(universe, universe, NULL, NULL, BR_RSTYLE_DEFAULT);

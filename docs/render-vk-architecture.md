@@ -155,10 +155,11 @@ The frame uses:
   fragment shader currently discards near-black final texels unconditionally as a conservative
   colour-key fallback. This removes black sprite rectangles such as the car's spike sprite;
   material flags remain in the draw record for a later, exact colour-key pass;
-- an initial horizon pass. `HORIZON.MAT` follows the camera position and yaw like the original
-  BRender horizon so it always covers the far background. It is submitted before the world with
-  normal depth testing, so it stays behind the car and track. Dynamic horizon clipping and the
-  remaining near geometry are still to do.
+- an initial horizon pass. Four copies of `HORIZON.MAT` cover the full circle at a fixed world
+  yaw while following the camera position, so camera turns reveal a different part of the
+  background instead of dragging the whole panorama with the view. The copies are submitted
+  before the world with normal depth testing, so they stay behind the car and track. Dynamic
+  horizon clipping and the remaining near geometry are still to do.
 
 The first measured scene has about 3408 draws, 38638 vertices and 65949 indices. The CPU bridge
 walks the live BRender scene every frame with no batching, indirect submission, shadows, mirror,
