@@ -55,6 +55,7 @@ static br_angle gRenderVk_sky_base_yaw;
 static int gRenderVk_sky_base_yaw_valid;
 static RvkBackgroundDraw gRenderVk_background;
 static int gRenderVk_background_valid;
+static float gRenderVk_camera_position[3];
 
 static GameRenderTextureEntry *gRenderVk_textures;
 static uint32_t gRenderVk_texture_count;
@@ -994,6 +995,9 @@ void GameRender_BeginScene(br_actor *camera) {
         return;
     }
     camera_data = (br_camera *)camera->type_data;
+    gRenderVk_camera_position[0] = (float)gCamera_to_world.m[3][0];
+    gRenderVk_camera_position[1] = (float)gCamera_to_world.m[3][1];
+    gRenderVk_camera_position[2] = (float)gCamera_to_world.m[3][2];
     {
         static float yon_base;
         static int yon_base_valid;
@@ -1159,10 +1163,37 @@ void GameRender_AddUniverse(br_actor *universe) {
     }
 }
 
+static float GameRender_DrawDistanceSquared(const RvkWorldDraw *draw) {
+    float dx = draw->model[12] - gRenderVk_camera_position[0];
+    float dy = draw->model[13] - gRenderVk_camera_position[1];
+    float dz = draw->model[14] - gRenderVk_camera_position[2];
+
+    return dx * dx + dy * dy + dz * dz;
+}
+
+static void GameRender_SortTransparentDraws(void) {
+    uint32_t i;
+
+    for (i = 1; i < gRenderVk_draw_count; i++) {
+        uint32_t j = i;
+        while (j > 0
+            && (gRenderVk_draws[j].flags & RVK_DRAW_FLAG_NO_DEPTH_WRITE) != 0
+            && (gRenderVk_draws[j - 1].flags & RVK_DRAW_FLAG_NO_DEPTH_WRITE) != 0
+            && GameRender_DrawDistanceSquared(&gRenderVk_draws[j - 1])
+                < GameRender_DrawDistanceSquared(&gRenderVk_draws[j])) {
+            RvkWorldDraw swap = gRenderVk_draws[j];
+            gRenderVk_draws[j] = gRenderVk_draws[j - 1];
+            gRenderVk_draws[j - 1] = swap;
+            j--;
+        }
+    }
+}
+
 void GameRender_EndScene(void) {
     if (!GameRender_IsActive()) {
         return;
     }
+    GameRender_SortTransparentDraws();
     if (gRenderVk_vertex_count > 0 && gRenderVk_index_count > 0 && gRenderVk_draw_count > 0) {
         gRenderVk_scene_ready = 1;
     }
