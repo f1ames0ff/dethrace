@@ -3,11 +3,14 @@
 Status: the new renderer must not be based on the legacy BRender/DDI/vkrend code. N0 is
 implemented in `src/render_vk/` and verified. The first in-game race frame is rendered by the new
 renderer through the runtime bridge: the world pass contains the track and the player car, and the
-existing HUD is presented as a transitional CPU overlay. The forward race is playable and the
-reported background, texture, timer and frontend regressions are fixed; the user confirmed that the
-result looks authentic. The legacy path remains a behavioral reference and the software/OpenGL
-fallback; it is not the base of the new renderer. Branch `feature/vkrend-v1`; engine `b006d70` and
-dethrace `441327a` plus the N0, first-light and parity fixes.
+existing HUD is presented as a transitional CPU overlay. The forward race through the new renderer
+is playable in local captures, but its visual parity is not yet confirmed by the user. The
+2026-10-21 "authentic" confirmation referred to the software path, which was launched without
+`--render-vk`; it did not validate the new renderer. The background, distant-texture, timer and
+frontend fixes still need validation on the actual `--render-vk` path. The legacy path remains a
+behavioral reference and the software/OpenGL fallback; it is not the base of the new renderer.
+Branch `feature/vkrend-v1`; engine `b006d70` and dethrace `441327a` plus the N0, first-light and
+parity fixes.
 
 ## Decisions (2026-10-18)
 
