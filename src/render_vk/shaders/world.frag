@@ -22,6 +22,10 @@ void main() {
     if (color.a < 0.01) {
         discard;
     }
+    if ((push.flags & 8u) != 0u) {
+        o_color = color;
+        return;
+    }
     float ndl = max(dot(normalize(v_normal), normalize(vec3(0.35, 0.8, 0.2))), 0.0);
     color.rgb *= 0.55 + 0.45 * ndl;
     o_color = color;

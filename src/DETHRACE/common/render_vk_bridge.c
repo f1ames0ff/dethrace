@@ -461,6 +461,9 @@ static int GameRender_EmitRun(const float model[16], br_material *material, uint
             && (material->flags & BR_MATF_DISABLE_COLOUR_KEY) == 0) {
             draw->flags |= RVK_DRAW_FLAG_COLOUR_KEY;
         }
+        if ((material->flags & BR_MATF_LIGHT) == 0) {
+            draw->flags |= RVK_DRAW_FLAG_UNLIT;
+        }
         if (material->colour_map == NULL) {
             colour = material->colour;
             draw->tint[0] = (float)((colour >> 16) & 0xFFu) / 255.0f;
