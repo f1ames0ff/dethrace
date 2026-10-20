@@ -193,7 +193,7 @@ static int GameRender_ConvertPixelmap(br_pixelmap *pm, uint8_t *rgba8) {
 
     switch (pm->type) {
     case BR_PMT_INDEX_8:
-        palette = pm->map != NULL ? pm->map : gCurrent_palette;
+        palette = gCurrent_palette != NULL ? gCurrent_palette : pm->map;
         if (palette == NULL || palette->pixels == NULL) {
             return 0;
         }
@@ -1018,8 +1018,6 @@ void GameRender_BeginScene(br_actor *camera) {
         float hori_sky;
         float yaw;
         float src_x;
-        float tan_pitch;
-        float hori_y;
         float hori_pixels;
 
         if (bg_screen != NULL && bg_screen->width != 0 && bg_screen->height != 0
@@ -1036,20 +1034,16 @@ void GameRender_BeginScene(br_actor *camera) {
                     }
                     hori_sky = 6.2831853f / (float)repetitions;
                     yaw = atan2f((float)gCamera_to_world.m[2][0], (float)gCamera_to_world.m[2][2]);
-                    src_x = (float)sky->width * (-yaw / hori_sky);
+                    src_x = truncf((float)sky->width * (-yaw / hori_sky));
                     src_x = fmodf(src_x, (float)sky->width);
                     if (src_x < 0.0f) {
                         src_x += (float)sky->width;
                     }
-                    tan_pitch = (float)gCamera_to_world.m[2][1]
-                        / sqrtf((float)gCamera_to_world.m[2][0] * (float)gCamera_to_world.m[2][0]
-                            + (float)gCamera_to_world.m[2][2] * (float)gCamera_to_world.m[2][2]);
-                    hori_y = tan_pitch / tan_half_fov * (float)bg_screen->height / 2.0f;
                     hori_pixels = (float)sky->height
                         - (float)gSky_image_underground * (float)sky->height / (float)gSky_image_height;
                     gRenderVk_background.texture = GameRender_GetTexture(sky);
                     gRenderVk_background.src_x = src_x;
-                    gRenderVk_background.top_y = -hori_y - hori_pixels;
+                    gRenderVk_background.top_y = -hori_pixels + 0.275f * (float)bg_screen->height;
                     gRenderVk_background.texture_width = (float)sky->width;
                     gRenderVk_background.texture_height = (float)sky->height;
                     gRenderVk_background_valid = gRenderVk_background.texture != 0;
@@ -1108,7 +1102,27 @@ void GameRender_AddUniverse(br_actor *universe) {
     if (!GameRender_IsActive() || universe == NULL || universe == gDont_render_actor) {
         return;
     }
-    GameRender_AddActor(universe, universe, NULL, NULL, BR_RSTYLE_DEFAULT);
+    {
+        tTrack_spec *track = &gProgram_state.track_spec;
+        if (track->columns != NULL && track->the_actor != NULL) {
+            br_uint_8 saved_style = track->the_actor->render_style;
+            int z;
+            int x;
+
+            track->the_actor->render_style = BR_RSTYLE_NONE;
+            GameRender_AddActor(universe, universe, NULL, NULL, BR_RSTYLE_DEFAULT);
+            track->the_actor->render_style = saved_style;
+            for (z = 0; z < track->ncolumns_z; z++) {
+                for (x = 0; x < track->ncolumns_x; x++) {
+                    if (track->columns[z][x] != NULL) {
+                        GameRender_AddActor(track->columns[z][x], universe, NULL, NULL, BR_RSTYLE_DEFAULT);
+                    }
+                }
+            }
+        } else {
+            GameRender_AddActor(universe, universe, NULL, NULL, BR_RSTYLE_DEFAULT);
+        }
+    }
     {
         int i;
         for (i = 0; i < gNumber_of_lollipops; i++) {
