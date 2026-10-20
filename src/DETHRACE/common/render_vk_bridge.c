@@ -1043,9 +1043,10 @@ void GameRender_BeginScene(br_actor *camera) {
                         - (float)gSky_image_underground * (float)sky->height / (float)gSky_image_height;
                     gRenderVk_background.texture = GameRender_GetTexture(sky);
                     gRenderVk_background.src_x = src_x;
-                    gRenderVk_background.top_y = -hori_pixels + 0.275f * (float)bg_screen->height;
+                    gRenderVk_background.top_y = -0.375f * (float)bg_screen->height;
                     gRenderVk_background.texture_width = (float)sky->width;
                     gRenderVk_background.texture_height = (float)sky->height;
+                    gRenderVk_background.scale_y = 2.0f;
                     gRenderVk_background_valid = gRenderVk_background.texture != 0;
                 }
             }

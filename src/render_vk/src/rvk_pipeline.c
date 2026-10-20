@@ -373,7 +373,7 @@ static RvkResult rvk_create_background_pipeline(RvkDevice *device) {
     memset(&push_range, 0, sizeof(push_range));
     push_range.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
     push_range.offset = 0;
-    push_range.size = sizeof(float) * 4;
+    push_range.size = sizeof(float) * 5;
     memset(&layout_info, 0, sizeof(layout_info));
     layout_info.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
     layout_info.setLayoutCount = 1;

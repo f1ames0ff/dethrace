@@ -87,11 +87,12 @@ RvkResult rvk_draw_world(RvkDevice *device, const float view_proj[16],
         VkDescriptorSet background_texture = rvk_texture_descriptor(device, background->texture);
 
         if (background_texture != VK_NULL_HANDLE) {
-            float background_push[4];
+            float background_push[5];
             background_push[0] = background->src_x;
             background_push[1] = background->top_y;
             background_push[2] = background->texture_width;
             background_push[3] = background->texture_height;
+            background_push[4] = background->scale_y;
             device->vk.CmdBindPipeline(device->command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, device->background_pipeline);
             device->vk.CmdBindDescriptorSets(device->command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
                 device->background_pipeline_layout, 0, 1, &background_texture, 0, NULL);

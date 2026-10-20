@@ -55,6 +55,7 @@ typedef struct RvkBackgroundDraw {
     float top_y;
     float texture_width;
     float texture_height;
+    float scale_y;
 } RvkBackgroundDraw;
 
 typedef void (*RvkLogFn)(void *user, int level, const char *message);
