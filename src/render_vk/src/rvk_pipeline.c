@@ -11,7 +11,7 @@ static VkResult rvk_create_shader_module(RvkDevice *device, const uint32_t *code
     return device->vk.CreateShaderModule(device->device, &create_info, NULL, module);
 }
 
-static RvkResult rvk_create_world_pipeline(RvkDevice *device, VkBool32 depth_test, VkPipeline *out_pipeline) {
+static RvkResult rvk_create_world_pipeline(RvkDevice *device, VkBool32 depth_test, VkBool32 depth_write, VkPipeline *out_pipeline) {
     VkShaderModule vertex_module = VK_NULL_HANDLE;
     VkShaderModule fragment_module = VK_NULL_HANDLE;
     VkPipelineShaderStageCreateInfo stages[2];
@@ -101,7 +101,7 @@ static RvkResult rvk_create_world_pipeline(RvkDevice *device, VkBool32 depth_tes
     memset(&depth_stencil, 0, sizeof(depth_stencil));
     depth_stencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
     depth_stencil.depthTestEnable = depth_test;
-    depth_stencil.depthWriteEnable = depth_test;
+    depth_stencil.depthWriteEnable = depth_write;
     depth_stencil.depthCompareOp = VK_COMPARE_OP_LESS_OR_EQUAL;
     depth_stencil.depthBoundsTestEnable = VK_FALSE;
     depth_stencil.stencilTestEnable = VK_FALSE;
@@ -414,11 +414,15 @@ static RvkResult rvk_create_background_pipeline(RvkDevice *device) {
 RvkResult rvk_create_pipelines(RvkDevice *device) {
     RvkResult result;
 
-    result = rvk_create_world_pipeline(device, VK_TRUE, &device->world_pipeline);
+    result = rvk_create_world_pipeline(device, VK_TRUE, VK_TRUE, &device->world_pipeline);
     if (result != RVK_OK) {
         return result;
     }
-    result = rvk_create_world_pipeline(device, VK_FALSE, &device->world_sky_pipeline);
+    result = rvk_create_world_pipeline(device, VK_TRUE, VK_FALSE, &device->world_blend_pipeline);
+    if (result != RVK_OK) {
+        return result;
+    }
+    result = rvk_create_world_pipeline(device, VK_FALSE, VK_FALSE, &device->world_sky_pipeline);
     if (result != RVK_OK) {
         return result;
     }
@@ -445,6 +449,10 @@ void rvk_destroy_pipelines(RvkDevice *device) {
     }
     if (device->world_pipeline != VK_NULL_HANDLE && device->vk.DestroyPipeline != NULL) {
         device->vk.DestroyPipeline(device->device, device->world_pipeline, NULL);
+    }
+    if (device->world_blend_pipeline != VK_NULL_HANDLE && device->vk.DestroyPipeline != NULL) {
+        device->vk.DestroyPipeline(device->device, device->world_blend_pipeline, NULL);
+        device->world_blend_pipeline = VK_NULL_HANDLE;
     }
     if (device->world_sky_pipeline != VK_NULL_HANDLE && device->vk.DestroyPipeline != NULL) {
         device->vk.DestroyPipeline(device->device, device->world_sky_pipeline, NULL);

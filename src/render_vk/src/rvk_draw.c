@@ -119,7 +119,13 @@ RvkResult rvk_draw_world(RvkDevice *device, const float view_proj[16],
         if (draw->first_index + draw->index_count > index_count) {
             continue;
         }
-        pipeline = (draw->flags & RVK_DRAW_FLAG_NO_DEPTH) ? device->world_sky_pipeline : device->world_pipeline;
+        if ((draw->flags & RVK_DRAW_FLAG_NO_DEPTH) != 0) {
+            pipeline = device->world_sky_pipeline;
+        } else if ((draw->flags & RVK_DRAW_FLAG_NO_DEPTH_WRITE) != 0) {
+            pipeline = device->world_blend_pipeline;
+        } else {
+            pipeline = device->world_pipeline;
+        }
         if (pipeline != bound_pipeline) {
             device->vk.CmdBindPipeline(device->command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
             bound_pipeline = pipeline;

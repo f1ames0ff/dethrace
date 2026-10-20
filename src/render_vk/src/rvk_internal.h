@@ -175,6 +175,7 @@ struct RvkDevice {
     VkPipelineLayout overlay_pipeline_layout;
     VkPipelineLayout background_pipeline_layout;
     VkPipeline world_pipeline;
+    VkPipeline world_blend_pipeline;
     VkPipeline world_sky_pipeline;
     VkPipeline background_pipeline;
     VkPipeline overlay_load_pipeline;

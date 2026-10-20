@@ -49,6 +49,7 @@ typedef struct RvkWorldDraw {
 #define RVK_DRAW_FLAG_NO_DEPTH 2u
 #define RVK_DRAW_FLAG_SKY 4u
 #define RVK_DRAW_FLAG_UNLIT 8u
+#define RVK_DRAW_FLAG_NO_DEPTH_WRITE 16u
 
 typedef struct RvkBackgroundDraw {
     RvkTexture texture;
