@@ -980,6 +980,7 @@ void GameRender_BeginScene(br_actor *camera) {
     br_scalar origin_x = BR_SCALAR(0);
     br_scalar origin_y = BR_SCALAR(0);
     br_scalar aspect;
+    br_scalar far_z = BR_SCALAR(0);
     int row;
     int column;
 
@@ -1007,7 +1008,7 @@ void GameRender_BeginScene(br_actor *camera) {
             yon_base = (float)gCamera_yon;
             yon_base_valid = 1;
         }
-        camera_data->yon_z = (br_scalar)(yon_base * multiplier);
+        far_z = (br_scalar)(yon_base * multiplier);
     }
     memset(&gRenderVk_background, 0, sizeof(gRenderVk_background));
     gRenderVk_background_valid = 0;
@@ -1067,7 +1068,7 @@ void GameRender_BeginScene(br_actor *camera) {
         aspect = BR_SCALAR(1);
     }
     BrMatrix4Perspective(&projection, camera_data->field_of_view, aspect,
-        -camera_data->hither_z, -camera_data->yon_z);
+        -camera_data->hither_z, -far_z);
     projection.m[2][0] = -origin_x;
     projection.m[2][1] = -origin_y;
     BrActorToActorMatrix34(&camera_to_world, gUniverse_actor, camera);
