@@ -136,12 +136,15 @@ palette index 0 as its transparent key while keeping index 255 white highlights 
 scene submits about 3408 draws, 38638 vertices and 65949 indices because the bridge emits one draw
 per material run with no batching. A full-screen background pass samples the track horizon texture
 before the world with depth test and write disabled, so background coverage does not depend on
-scene culling or the far plane. The panorama follows the legacy `ExternalSky` yaw/pitch mapping and
-does not move with camera translation. The new path scales the camera far plane to twenty times
-the configured yon
-(`RVK_FAR_MULTIPLIER` overrides it), submits the pedestrian lollipop queue explicitly, invalidates
-its texture cache on track load/unload, and maps the legacy background-fill decision to the
-Vulkan clear colour.
+scene culling or the far plane. The panorama follows the legacy `ExternalSky` yaw mapping, is
+scaled vertically to match the original 320x200 presentation and does not move with camera
+translation. The bridge now submits track columns and blended track faces explicitly, uses the
+live palette for indexed textures, keeps unlit materials unlit, samples textures nearest-neighbour,
+and uses a depth-write-disabled pipeline for translucent materials. The new path builds the
+projection with an extended far plane without overwriting the camera actor's yon
+(`RVK_FAR_MULTIPLIER` overrides the projection distance), submits the pedestrian lollipop queue
+explicitly, invalidates its texture cache on track load/unload, and maps the legacy
+background-fill decision to the Vulkan clear colour.
 Dynamic horizon clipping, shadow, mirror, cockpit and effect passes are not implemented.
 
 Early performance: Release, 640x480, IMMEDIATE, `--fps=0`, one 60-second stationary autostart
@@ -192,15 +195,17 @@ an optional comparison mode. Update docs.
 
 ## Immediate next steps
 
-1. Compare the new forward frame against `docs/images/legacy-race-reference.png` at the same
-   autostart pose now that the mapped horizon exists.
-2. Batch the runtime bridge by material/pipeline and move static track geometry out of the
-   per-frame actor walk; the current 3512 draws are a correctness milestone, not a performance
+1. Replace the empirical panorama vertical anchor with a pitch/FOV-derived screen mapping, then
+   compare the new forward frame against `docs/images/legacy-race-reference.png` at the same
+   autostart pose and resolution.
+2. Add the missing depth-cue/fog pass, transparent draw sorting and the HUD dim behind head-ups.
+3. Batch the runtime bridge by material/pipeline and move static track geometry out of the
+   per-frame actor walk; the current draw count is a correctness milestone, not a performance
    design.
-3. Build the N1 neutral asset format, offline importer and standalone viewer around one track and
+4. Build the N1 neutral asset format, offline importer and standalone viewer around one track and
    one car.
-4. Port the forward HUD/map to the new 2D pass; keep the CPU overlay only until parity.
-5. Run the formal N4 gate (five 60-second moving-race runs, p50/p95/p99, parity) before claiming
+5. Port the forward HUD/map to the new 2D pass; keep the CPU overlay only until parity.
+6. Run the formal N4 gate (five 60-second moving-race runs, p50/p95/p99, parity) before claiming
    the final 200 FPS acceptance.
 
 ## Risks
