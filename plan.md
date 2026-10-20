@@ -147,10 +147,11 @@ explicitly, invalidates its texture cache on track load/unload, and maps the leg
 background-fill decision to the Vulkan clear colour.
 Dynamic horizon clipping, shadow, mirror, cockpit and effect passes are not implemented.
 
-Early performance: Release, 640x480, IMMEDIATE, `--fps=0`, one 60-second stationary autostart
-scene with `RVK_FPS_LOG=1`: 1016-1067 presented frames/s in steady samples, about 1020 frames/s
-over 59 samples including warm-up, with 3408 draws. This exceeds 200 FPS for this scene, but is
-not the formal N4 gate; moving-race parity and 5 x 60 s percentile runs remain.
+Early performance: Release, 640x480, IMMEDIATE, `--fps=0`, one 70-second stationary autostart
+scene with `VKREND_PROFILE=1`: 20,000 steady frames at 998.1 us mean, about 1002 presented
+frames/s. This exceeds 200 FPS for this scene, but is not the formal N4 gate; moving-race parity
+and 5 x 60 s percentile runs remain. Synthetic keyboard input is not used for measurements; a
+moving run must be driven manually or replayed.
 
 Exit: 640x480 scene at target throughput in the authorized optimized build; validation clean;
 p50/p95/p99 recorded; no per-draw descriptor writes; draw count measured; the measured reason for
