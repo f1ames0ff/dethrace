@@ -1123,6 +1123,17 @@ void GameRender_AddUniverse(br_actor *universe) {
                     }
                 }
             }
+            for (z = 0; track->blends != NULL && z < track->ncolumns_z; z++) {
+                for (x = 0; x < track->ncolumns_x; x++) {
+                    br_actor *blend = track->blends[z][x];
+                    if (blend != NULL) {
+                        br_uint_8 blend_style = blend->render_style;
+                        blend->render_style = BR_RSTYLE_FACES;
+                        GameRender_AddActor(blend, universe, NULL, NULL, BR_RSTYLE_FACES);
+                        blend->render_style = blend_style;
+                    }
+                }
+            }
         } else {
             GameRender_AddActor(universe, universe, NULL, NULL, BR_RSTYLE_DEFAULT);
         }
