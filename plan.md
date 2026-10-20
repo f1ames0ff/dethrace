@@ -3,9 +3,11 @@
 Status: the new renderer must not be based on the legacy BRender/DDI/vkrend code. N0 is
 implemented in `src/render_vk/` and verified. The first in-game race frame is rendered by the new
 renderer through the runtime bridge: the world pass contains the track and the player car, and the
-existing HUD is presented as a transitional CPU overlay. The legacy path remains a behavioral
-reference and the software/OpenGL fallback; it is not the base of the new renderer. Branch
-`feature/vkrend-v1`; engine `b006d70` and dethrace `441327a` plus the N0 and first-light work.
+existing HUD is presented as a transitional CPU overlay. The forward race is playable and the
+reported background, texture, timer and frontend regressions are fixed; the user confirmed that the
+result looks authentic. The legacy path remains a behavioral reference and the software/OpenGL
+fallback; it is not the base of the new renderer. Branch `feature/vkrend-v1`; engine `b006d70` and
+dethrace `441327a` plus the N0, first-light and parity fixes.
 
 ## Decisions (2026-10-18)
 
@@ -110,7 +112,7 @@ The runtime bridge was brought forward for first light. It walks the live BRende
 reads source model arrays for cars and prepared `v11group` data for track models whose source
 arrays were released, and submits one draw per material run. The first race frame, with the car
 visible and upright, is captured in `docs/images/render-vk-first-race.png`. The offline importer
-and standalone viewer are still to do; the horizon/sky pass is also missing.
+and standalone viewer are still to do; the mapped full-screen horizon pass now exists.
 
 Exit: imported scene matches the software reference within the comparator tolerance; asset format
 documented; runtime renderer has no BRender dependency.
@@ -130,8 +132,10 @@ materials that request it (never to the horizon), blends by source alpha, and th
 palette index 0 as its transparent key while keeping index 255 white highlights opaque. The first race
 scene submits about 3408 draws, 38638 vertices and 65949 indices because the bridge emits one draw
 per material run with no batching. A full-screen background pass samples the track horizon texture
-before the world with depth disabled, so background coverage does not depend on scene culling or
-the far plane. The new path scales the camera far plane to twenty times the configured yon
+before the world with depth test and write disabled, so background coverage does not depend on
+scene culling or the far plane. The panorama follows the legacy `ExternalSky` yaw/pitch mapping and
+does not move with camera translation. The new path scales the camera far plane to twenty times
+the configured yon
 (`RVK_FAR_MULTIPLIER` overrides it), submits the pedestrian lollipop queue explicitly, invalidates
 its texture cache on track load/unload, and maps the legacy background-fill decision to the
 Vulkan clear colour.
@@ -152,9 +156,9 @@ camera, cars, track, effects, HUD, map, mirror, cockpit, shadows. Keep the legac
 selector for A/B. No BRender renderer/DDI calls in the new path.
 
 The forward world, camera, player car and HUD overlay now run in a race. Hidden car subtrees are
-pruned correctly, removing the stray bonnet-fin geometry. The horizon is now drawn before the
-world with normal depth, so it stays behind the car and track. The far plane is extended and
-pedestrian lollipops are rendered. `RVK_AUTOSTART=1` is a verification hook that skips the menus
+pruned correctly, removing the stray bonnet-fin geometry. The horizon is drawn as a mapped
+full-screen background before the world, so it stays behind the car and track and is independent
+of culling. The far plane is extended and pedestrian lollipops are rendered. `RVK_AUTOSTART=1` is a verification hook that skips the menus
 and grid screen; it works in both renderer builds for same-pose comparisons and is not a shipping
 default. Map, mirror, cockpit, dynamic horizon clipping, shadows, smoke, sparks, splashes and
 summary parity remain.
@@ -185,8 +189,8 @@ an optional comparison mode. Update docs.
 
 ## Immediate next steps
 
-1. Add the horizon/sky pass and compare the new forward frame against
-   `docs/images/legacy-race-reference.png` at the same autostart pose.
+1. Compare the new forward frame against `docs/images/legacy-race-reference.png` at the same
+   autostart pose now that the mapped horizon exists.
 2. Batch the runtime bridge by material/pipeline and move static track geometry out of the
    per-frame actor walk; the current 3512 draws are a correctness milestone, not a performance
    design.
