@@ -180,8 +180,11 @@ Full visual parity set (forward, mirror, cockpit, map, summary, pratcam, fades, 
 frontend, damaged/repair), 10-minute race, validation, 200 FPS in the authorized optimized build.
 Exit: mean <= 5.0 ms, p50/p95/p99 reported; no 4101/device loss/camera assert; one instance.
 
-The Release start scene is already around 1020 presented frames/s with 3408 draws; the formal
-five-run moving-race measurement and parity set are still required.
+Two clean manual moving-race windows pass the numeric gate: 52,732 frames with mean 1.138 ms,
+p50 1.084 ms, p95 1.441 ms, p99 1.953 ms and 0.01% over 5 ms; and 54,836 frames with mean
+1.094 ms, p50 0.992 ms, p95 1.165 ms, p99 1.701 ms and 0.41% over 5 ms. The formal five-run
+measurement and the full parity set are still required; the performance target is not yet claimed
+as accepted.
 
 ### N5 - remove the legacy render path
 Switch the default to the new renderer; keep software/OpenGL fallback and the legacy code only as
