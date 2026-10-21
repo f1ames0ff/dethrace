@@ -57,6 +57,7 @@ static RvkBackgroundDraw gRenderVk_background;
 static int gRenderVk_background_valid;
 static float gRenderVk_camera_position[3];
 static float gRenderVk_fog[4];
+static int gRenderVk_precache_done;
 
 static GameRenderTextureEntry *gRenderVk_textures;
 static uint32_t gRenderVk_texture_count;
@@ -860,6 +861,7 @@ void GameRender_ResetTrackResources(void) {
     uint32_t i;
 
     gRenderVk_sky_base_yaw_valid = 0;
+    gRenderVk_precache_done = 0;
     gOld_fov = 0;
     gOld_yon = 0;
     if (gRenderVk_device != NULL) {
@@ -1123,9 +1125,52 @@ static int GameRender_PrepareSky(br_actor *camera) {
     return 1;
 }
 
+static void GameRender_PrecacheMaterial(br_material *material) {
+    if (material != NULL && material->colour_map != NULL) {
+        GameRender_GetTexture(material->colour_map);
+    }
+}
+
+static void GameRender_PrecacheModel(br_model *model, br_material *actor_material) {
+    uint32_t i;
+
+    if (model == NULL) {
+        GameRender_PrecacheMaterial(actor_material);
+        return;
+    }
+    if (model->vertices != NULL && model->faces != NULL) {
+        for (i = 0; i < model->nfaces; i++) {
+            GameRender_PrecacheMaterial(model->faces[i].material != NULL ? model->faces[i].material : actor_material);
+        }
+    }
+    if (model->prepared != NULL) {
+        struct v11model *prepared = (struct v11model *)model->prepared;
+        for (i = 0; i < prepared->ngroups; i++) {
+            GameRender_PrecacheMaterial(prepared->groups[i].user != NULL ? prepared->groups[i].user : actor_material);
+        }
+    }
+    GameRender_PrecacheMaterial(actor_material);
+}
+
+static void GameRender_PrecacheActor(br_actor *actor) {
+    br_actor *child;
+
+    if (actor == NULL || actor == gDont_render_actor) {
+        return;
+    }
+    GameRender_PrecacheModel(actor->model, actor->material);
+    for (child = actor->children; child != NULL; child = child->next) {
+        GameRender_PrecacheActor(child);
+    }
+}
+
 void GameRender_AddUniverse(br_actor *universe) {
     if (!GameRender_IsActive() || universe == NULL || universe == gDont_render_actor) {
         return;
+    }
+    if (!gRenderVk_precache_done) {
+        GameRender_PrecacheActor(universe);
+        gRenderVk_precache_done = 1;
     }
     {
         tTrack_spec *track = &gProgram_state.track_spec;
