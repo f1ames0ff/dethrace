@@ -145,7 +145,9 @@ projection with an extended far plane without overwriting the camera actor's yon
 (`RVK_FAR_MULTIPLIER` overrides the projection distance), submits the pedestrian lollipop queue
 explicitly, invalidates its texture cache on track load/unload, and maps the legacy
 background-fill decision to the Vulkan clear colour.
-Dynamic horizon clipping, shadow, mirror, cockpit and effect passes are not implemented.
+A distance-based depth cue and a depth-write-disabled, sorted translucent pass are now
+implemented. Dynamic horizon clipping, shadow, mirror, cockpit, HUD dim and the remaining effect
+passes are not implemented.
 
 Early performance: Release, 640x480, IMMEDIATE, `--fps=0`, one 70-second stationary autostart
 scene with `VKREND_PROFILE=1`: 20,000 steady frames at 998.1 us mean, about 1002 presented
@@ -199,7 +201,7 @@ an optional comparison mode. Update docs.
 1. Replace the empirical panorama vertical anchor with a pitch/FOV-derived screen mapping, then
    compare the new forward frame against `docs/images/legacy-race-reference.png` at the same
    autostart pose and resolution.
-2. Add the missing depth-cue/fog pass, transparent draw sorting and the HUD dim behind head-ups.
+2. Add the HUD dim behind head-ups and the remaining shadow/mirror/cockpit passes.
 3. Batch the runtime bridge by material/pipeline and move static track geometry out of the
    per-frame actor walk; the current draw count is a correctness milestone, not a performance
    design.
