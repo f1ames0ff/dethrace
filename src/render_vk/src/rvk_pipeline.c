@@ -129,21 +129,23 @@ static RvkResult rvk_create_world_pipeline(RvkDevice *device, VkBool32 depth_tes
 
     set_layouts[0] = device->ubo_set_layout;
     set_layouts[1] = device->texture_set_layout;
-    memset(&push_range, 0, sizeof(push_range));
-    push_range.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
-    push_range.offset = 0;
-    push_range.size = sizeof(float) * 25;
-    memset(&layout_info, 0, sizeof(layout_info));
-    layout_info.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-    layout_info.setLayoutCount = 2;
-    layout_info.pSetLayouts = set_layouts;
-    layout_info.pushConstantRangeCount = 1;
-    layout_info.pPushConstantRanges = &push_range;
-    result = device->vk.CreatePipelineLayout(device->device, &layout_info, NULL, &device->world_pipeline_layout);
-    if (result != VK_SUCCESS) {
-        device->vk.DestroyShaderModule(device->device, fragment_module, NULL);
-        device->vk.DestroyShaderModule(device->device, vertex_module, NULL);
-        return rvk_check(device, result, "create world pipeline layout");
+    if (device->world_pipeline_layout == VK_NULL_HANDLE) {
+        memset(&push_range, 0, sizeof(push_range));
+        push_range.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
+        push_range.offset = 0;
+        push_range.size = sizeof(float) * 25;
+        memset(&layout_info, 0, sizeof(layout_info));
+        layout_info.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+        layout_info.setLayoutCount = 2;
+        layout_info.pSetLayouts = set_layouts;
+        layout_info.pushConstantRangeCount = 1;
+        layout_info.pPushConstantRanges = &push_range;
+        result = device->vk.CreatePipelineLayout(device->device, &layout_info, NULL, &device->world_pipeline_layout);
+        if (result != VK_SUCCESS) {
+            device->vk.DestroyShaderModule(device->device, fragment_module, NULL);
+            device->vk.DestroyShaderModule(device->device, vertex_module, NULL);
+            return rvk_check(device, result, "create world pipeline layout");
+        }
     }
 
     memset(&pipeline_info, 0, sizeof(pipeline_info));
