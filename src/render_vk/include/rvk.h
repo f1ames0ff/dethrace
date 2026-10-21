@@ -42,6 +42,7 @@ typedef struct RvkWorldDraw {
     float model[16];
     RvkTexture texture;
     float tint[4];
+    float fog[4];
     uint32_t flags;
 } RvkWorldDraw;
 

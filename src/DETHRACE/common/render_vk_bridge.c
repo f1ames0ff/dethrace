@@ -56,6 +56,7 @@ static int gRenderVk_sky_base_yaw_valid;
 static RvkBackgroundDraw gRenderVk_background;
 static int gRenderVk_background_valid;
 static float gRenderVk_camera_position[3];
+static float gRenderVk_fog[4];
 
 static GameRenderTextureEntry *gRenderVk_textures;
 static uint32_t gRenderVk_texture_count;
@@ -456,6 +457,7 @@ static int GameRender_EmitRun(const float model[16], br_material *material, uint
     draw->tint[1] = 1.0f;
     draw->tint[2] = 1.0f;
     draw->tint[3] = 1.0f;
+    memcpy(draw->fog, gRenderVk_fog, sizeof(draw->fog));
     if (material != NULL) {
         draw->tint[3] = (float)material->opacity / 255.0f;
         if ((gRenderVk_draw_flags & RVK_DRAW_FLAG_SKY) == 0 && material->colour_map != NULL
@@ -1016,6 +1018,17 @@ void GameRender_BeginScene(br_actor *camera) {
             yon_base_valid = 1;
         }
         far_z = (br_scalar)(yon_base * multiplier);
+    }
+    gRenderVk_fog[0] = 0.0f;
+    gRenderVk_fog[1] = 0.0f;
+    gRenderVk_fog[2] = 0.0f;
+    gRenderVk_fog[3] = 0.0f;
+    if (gProgram_state.current_depth_effect.type != eDepth_effect_none) {
+        float yon = (float)camera_data->yon_z;
+        gRenderVk_fog[0] = yon * 0.55f;
+        gRenderVk_fog[1] = yon * 1.15f;
+        gRenderVk_fog[2] = 0.35f;
+        gRenderVk_fog[3] = 1.0f;
     }
     memset(&gRenderVk_background, 0, sizeof(gRenderVk_background));
     gRenderVk_background_valid = 0;

@@ -11,14 +11,17 @@ layout(set = 0, binding = 0) uniform WorldUniforms {
 layout(push_constant) uniform WorldPushConstants {
     mat4 model;
     vec4 tint;
+    vec4 fog;
     uint flags;
 } push;
 
 layout(location = 0) out vec3 v_normal;
 layout(location = 1) out vec2 v_uv;
+layout(location = 2) out float v_depth;
 
 void main() {
     vec4 clip = world.view_proj * push.model * vec4(position, 1.0);
+    v_depth = abs(clip.w);
     clip.z = (clip.w - clip.z) * 0.5;
     clip.y = -clip.y;
     gl_Position = clip;
